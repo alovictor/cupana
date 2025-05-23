@@ -1,0 +1,96 @@
+#[derive(Debug, PartialEq, Clone, Copy)]
+pub enum Opcode {
+    Nop = 0x00,
+    Hlt = 0x01,
+    MovRegReg = 0x10,
+    MovRegLit = 0x11,
+    MovRegMem = 0x12,
+    MovRegRegInd = 0x13,
+    MovMemReg = 0x14,
+    MovRegIndReg = 0x15,
+    AddRegReg = 0x20,
+    AddRegLit = 0x21,
+    SubRegReg = 0x22,
+    SubRegLit = 0x23,
+    SubLitReg = 0x24,
+    MulRegReg = 0x25,
+    MulRegLit = 0x26,
+    DivRegReg = 0x27,
+    DivRegLit = 0x28,
+    DivLitReg = 0x29,
+    ModRegReg = 0x2A,
+    ModRegLit = 0x2B,
+    ModLitReg = 0x2C,
+    IncReg = 0x2D,
+    DecReg = 0x2E,
+    AndRegReg = 0x30,
+    OrRegReg = 0x31,
+    XorRegReg = 0x32,
+    NotReg = 0x33,
+    CmpRegReg = 0x40,
+    CmpRegLit = 0x41,
+    JmpLit = 0x50,
+    JmpReg = 0x51,
+    JzLit = 0x52,
+    JzReg = 0x53,
+    JnzLit = 0x54,
+    JnzReg = 0x55,
+    JnLit = 0x56,
+    JnReg = 0x57,
+    JnnLit = 0x58,
+    JnnReg = 0x59,
+    JcLit = 0x5A,
+    JcReg = 0x5B,
+    JncLit = 0x5C,
+    JncReg = 0x5D,
+    CallLit = 0x60,
+    Ret = 0x61,
+}
+
+#[derive(Debug, PartialEq, Clone, Copy)]
+pub struct Register(pub u8);
+
+#[derive(Debug, PartialEq, Clone)]
+pub enum Operand {
+    Register(Register),
+    DereferencedRegister(Register),
+    Literal(u16),
+    Label(String),
+}
+
+#[derive(Debug, PartialEq, Clone)]
+pub enum InstructionType {
+    Nop,
+    Hlt,
+    Mov { dest: Operand, src: Operand },
+    Add { dest: Operand, src: Operand },
+    Sub { dest: Operand, src: Operand },
+    Mul { dest: Operand, src: Operand },
+    Div { dest: Operand, src: Operand },
+    Mod { dest: Operand, src: Operand },
+    Inc { reg: Operand },
+    Dec { reg: Operand },
+    And { dest: Operand, src: Operand },
+    Or { dest: Operand, src: Operand },
+    Xor { dest: Operand, src: Operand },
+    Not { reg: Operand },
+    Cmp { op1: Operand, op2: Operand },
+    Jmp { target: Operand },
+    Jz { target: Operand },
+    Jnz { target: Operand },
+    Jn { target: Operand },
+    Jnn { target: Operand },
+    Jc { target: Operand },
+    Jnc { target: Operand },
+    Call { target: Operand },
+    Ret,
+}
+
+#[derive(Debug, PartialEq, Clone)]
+pub enum ParsedLine {
+    Instruction(InstructionType),
+    LabelDefinition(String),
+    Directive { name: String, args: Vec<Operand> },
+    Comment,
+    Empty,
+}

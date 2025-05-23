@@ -1,0 +1,10 @@
+; Teste de labels e saltos
+.ORG #256 ; Hex 0x100
+START:
+    MOV R0, $0
+    MOV R1, $5
+LOOP:
+    ADD R0, R0 ; Simula R0 = R0 * 2, mas eh R0 = R0 + R0
+    DEC R1
+    JNZ LOOP      ; Saltar para LOOP se R1 nao for zero
+    HLT
