@@ -1,0 +1,11 @@
+; Teste de CALL e RET
+.ORG #512 ; Hex 0x200
+MAIN:      ; Addr 0x200
+    MOV R0, $1         ; R0 = 1
+    CALL SUBROUTINE_ADDR ; Endereco de SUBROUTINE_ADDR e' 0x207
+    ADD R0, $1         ; Addr 0x204, R0 deve ser 3 aqui (1+1+1)
+    HLT                ; Addr 0x206
+; -------------
+SUBROUTINE_ADDR: ; Addr 0x207
+    ADD R0, $1         ; R0 = R0 + 1 (R0 e' 2 se entrou com 1 do MAIN)
+    RET                ; Addr 0x209 (PC seria 0x20A, RET o traz para 0x204)

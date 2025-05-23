@@ -1,0 +1,7 @@
+; Teste simples de instruções basicas
+NOP
+MOV R1, $1020 ; Mover literal para registrador
+MOV R2, R1    ; Mover registrador para registrador
+ADD R1, R2    ; Adicionar R2 a R1
+INC R1
+HLT

@@ -1,14 +1,32 @@
-pub mod machine;
-pub mod memory;
-pub mod cupana;
-pub mod error;
+use clap::Parser;
 
-use cupana::Cupana;
-use error::CError;
+pub mod assembler;
 
-fn main() -> Result<(), CError> {
-    let mut emulator = Cupana::new();
-    emulator.load_program(&[0x11, 0x01, 0x0A, 0x00, 0x10, 0x02, 0x01, 0x01]);
-    emulator.run()?;
-    Ok(())
+#[derive(Parser, Debug)]
+#[command(author, version, about, long_about = None)]
+struct Args {
+    /// Input assembly file path
+    input_file: String,
+
+    /// Output binary file path
+    output_file: String,
+}
+
+fn main() {
+    let args = Args::parse();
+
+    println!(
+        "Assembling '{}' to '{}'",
+        args.input_file, args.output_file
+    );
+
+    match assembler::driver::assemble_file(&args.input_file, &args.output_file) {
+        Ok(()) => {
+            println!("Assembly successful!");
+        }
+        Err(e) => {
+            eprintln!("{}", e); 
+            std::process::exit(1);
+        }
+    }
 }
