@@ -1,0 +1,154 @@
+mod ram;
+mod rom;
+
+use crate::devices::Device;
+use crate::error::MemoryError;
+use ram::Ram;
+use rom::Rom;
+use std::cell::RefCell;
+use std::fmt;
+
+pub const ROM_BASE: u16 = 0x0000;
+pub const ROM_SIZE: u16 = 0x8000; // 32KB
+pub const ROM_END: u16 = ROM_BASE + ROM_SIZE - 1;
+
+pub const RAM_BASE: u16 = 0x8000;
+pub const RAM_SIZE: u16 = 0x7000; // 28KB para dar espaço ao MMIO
+pub const RAM_END: u16 = RAM_BASE + RAM_SIZE - 1;
+
+pub const MMIO_BASE: u16 = 0xF000;
+pub const MMIO_END: u16 = 0xFFFF;
+
+// Reutilize as constantes de layout de memória definidas anteriormente
+// ROM_SIZE, ROM_END, RAM_BASE, RAM_END, etc.
+
+pub struct MemoryBus {
+    rom: Rom,
+    ram: Ram,
+    devices: Vec<RefCell<Box<dyn Device>>>, // Dispositivos MMIO, envoltos em RefCell
+}
+
+impl MemoryBus {
+    pub fn new() -> Self {
+        // Valide se os tamanhos configurados de RAM/ROM são consistentes com as constantes
+        // Por exemplo, a RAM passada deve ser inicializada com RAM_SIZE_CONFIGURED
+        Self {
+            rom: Rom::new(),
+            ram: Ram::new(),
+            devices: Vec::new(),
+        }
+    }
+
+    /// Adiciona um novo dispositivo MMIO ao barramento.
+    pub fn add_device(&mut self, device: Box<dyn Device>) {
+        // Opcional: Verificar sobreposição de endereços com ROM, RAM ou outros dispositivos.
+        // Por agora, apenas adicionamos. O dispositivo em si é responsável por saber seus endereços via aabb().
+        self.devices.push(RefCell::new(device));
+    }
+
+    /// Carrega dados na ROM através do barramento.
+    pub fn load_rom_data(&mut self, data: &[u8]) {
+        self.rom.load(data); // Assumindo que Rom::load é acessível
+    }
+
+    /// Encontra um dispositivo que corresponda ao endereço global fornecido.
+    fn find_device(&self, addr: u16) -> Option<&RefCell<Box<dyn Device>>> {
+        for dev_cell in &self.devices {
+            // Precisamos de um borrow temporário para chamar aabb()
+            let device_borrow = dev_cell.borrow();
+            let (start, end) = device_borrow.aabb();
+            if addr >= start && addr <= end {
+                return Some(dev_cell);
+            }
+        }
+        None
+    }
+}
+
+impl Memory for MemoryBus {
+    fn read_u8(&self, addr: u16) -> Result<u8, MemoryError> {
+        if addr >= ROM_BASE && addr <= ROM_END {
+            self.rom.read_u8(addr) // ROM não precisa de ajuste de offset se base é 0
+        } else if addr >= RAM_BASE && addr <= RAM_END {
+            self.ram.read_u8(addr - RAM_BASE) // Ajusta para o offset da RAM
+        } else if let Some(device_cell) = self.find_device(addr) {
+            let mut device = device_cell.borrow_mut(); // Permite mutação interna do dispositivo
+            let (dev_start, _) = device.aabb();
+            device.read_u8(addr - dev_start) // Passa o offset relativo ao dispositivo
+        } else {
+            println!("Bus read u8: Address 0x{:04X} not mapped", addr);
+            Err(MemoryError::InvalidRamAddress(addr)) // Ou um novo `AddressNotMapped`
+        }
+    }
+
+    fn read_u16(&self, addr: u16) -> Result<u16, MemoryError> {
+        // Verifica se o endereço e addr+1 estão dentro da mesma região
+        if addr >= ROM_BASE && (addr.saturating_add(1)) <= ROM_END {
+            self.rom.read_u16(addr)
+        } else if addr >= RAM_BASE && (addr.saturating_add(1)) <= RAM_END {
+            self.ram.read_u16(addr - RAM_BASE)
+        } else if let Some(device_cell) = self.find_device(addr) {
+            let mut device = device_cell.borrow_mut();
+            let (dev_start, dev_end) = device.aabb();
+            if addr.saturating_add(1) > dev_end {
+                // Garante que a leitura de 16 bits não ultrapasse os limites do dispositivo
+                return Err(MemoryError::InvalidRamAddress(addr));
+            }
+            device.read_u16(addr - dev_start)
+        } else {
+            println!("Bus read u16: Address 0x{:04X} not mapped", addr);
+            Err(MemoryError::InvalidRamAddress(addr))
+        }
+    }
+
+    fn write_u8(&mut self, addr: u16, val: u8) -> Result<(), MemoryError> {
+        if addr >= ROM_BASE && addr <= ROM_END {
+            Err(MemoryError::WriteNotPermitted(addr)) // Não se pode escrever na ROM
+        } else if addr >= RAM_BASE && addr <= RAM_END {
+            self.ram.write_u8(addr - RAM_BASE, val)
+        } else if let Some(device_cell) = self.find_device(addr) {
+            let mut device = device_cell.borrow_mut();
+            let (dev_start, _) = device.aabb();
+            device.write_u8(addr - dev_start, val)
+        } else {
+            println!("Bus write u8: Address 0x{:04X} not mapped", addr);
+            Err(MemoryError::WriteNotPermitted(addr)) // Ou InvalidAddress
+        }
+    }
+
+    fn write_u16(&mut self, addr: u16, val: u16) -> Result<(), MemoryError> {
+        if addr >= ROM_BASE && (addr.saturating_add(1)) <= ROM_END {
+            Err(MemoryError::WriteNotPermitted(addr))
+        } else if addr >= RAM_BASE && (addr.saturating_add(1)) <= RAM_END {
+            self.ram.write_u16(addr - RAM_BASE, val)
+        } else if let Some(device_cell) = self.find_device(addr) {
+            let mut device = device_cell.borrow_mut();
+            let (dev_start, dev_end) = device.aabb();
+            if addr.saturating_add(1) > dev_end {
+                return Err(MemoryError::WriteNotPermitted(addr));
+            }
+            device.write_u16(addr - dev_start, val)
+        } else {
+            println!("Bus write u16: Address 0x{:04X} not mapped", addr);
+            Err(MemoryError::WriteNotPermitted(addr))
+        }
+    }
+}
+
+// Para debugging, se necessário:
+impl fmt::Debug for MemoryBus {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("MemoryBus")
+            .field("rom_size", &ROM_SIZE)
+            .field("ram_size_configured", &RAM_SIZE)
+            .field("num_devices", &self.devices.len())
+            .finish()
+    }
+}
+
+pub trait Memory {
+    fn read_u8(&self, addr: u16) -> Result<u8, MemoryError>;
+    fn read_u16(&self, addr: u16) -> Result<u16, MemoryError>;
+    fn write_u8(&mut self, addr: u16, val: u8) -> Result<(), MemoryError>;
+    fn write_u16(&mut self, addr: u16, val: u16) -> Result<(), MemoryError>;
+}

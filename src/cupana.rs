@@ -1,13 +1,13 @@
 use std::fmt::Display;
 
+use crate::devices::Device;
 use crate::error::CError;
 use crate::machine::CupanaMachine;
-use crate::memory::{Rom, Ram};
+use crate::memory::MemoryBus;
 
 pub struct Cupana {
     cpu: CupanaMachine,
-    rom: Rom,
-    ram: Ram,
+    mem_bus: MemoryBus,
     running: bool,
 }
 
@@ -15,20 +15,24 @@ impl Cupana {
     pub fn new() -> Self {
         Self {
             cpu: CupanaMachine::new(),
-            rom: Rom::new(),
-            ram: Ram::new(),
+            mem_bus: MemoryBus::new(),
             running: false,
         }
     }
 
     pub fn load_program(&mut self, program: &[u8]) {
-        self.rom.load(program);
+        self.mem_bus.load_rom_data(program);
+    }
+
+    /// Registra um novo dispositivo MMIO.
+    pub fn register_device(&mut self, device: Box<dyn Device>) {
+        self.mem_bus.add_device(device);
     }
 
     pub fn run(&mut self) -> Result<(), CError> {
         self.running = true;
         while self.running {
-            self.cpu.step(&self.rom, &mut self.ram)?;
+            self.cpu.step(&mut self.mem_bus).map_err(CError::VM)?;
             if self.cpu.has_halted() {
                 self.running = false;
             }
@@ -41,8 +45,8 @@ impl Display for Cupana {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         writeln!(f, "Cupana Machine State:")?;
         writeln!(f, "{}", self.cpu)?;
-        writeln!(f, "ROM:\n{}", self.rom)?;
-        writeln!(f, "RAM:\n{}", self.ram)?;
+        // writeln!(f, "ROM:\n{}", self.rom)?;
+        // writeln!(f, "RAM:\n{}", self.ram)?;
         writeln!(f, "Running: {}", self.running)
     }
 }

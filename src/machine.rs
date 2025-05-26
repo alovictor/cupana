@@ -2,7 +2,7 @@ use std::fmt::Display;
 
 use crate::{
     error::VMError,
-    memory::{Memory, Ram, Rom},
+    memory::{MemoryBus, Memory},
 };
 
 const NUM_REGISTERS: usize = 0x10; // 16 registradores
@@ -23,7 +23,7 @@ impl CupanaMachine {
         Self {
             registers: [0; NUM_REGISTERS],
             stack: Vec::new(),
-            pc: 0x100,
+            pc: 0,
             flags: 0,
         }
     }
@@ -54,8 +54,8 @@ impl CupanaMachine {
         }
     }
 
-    fn get_register_index(&self, pc: u16, rom: &Rom) -> Result<usize, VMError> {
-        let reg = rom.read_u8(pc)?;
+    fn get_register_index(&self, pc: u16, mem_bus: &mut MemoryBus) -> Result<usize, VMError> {
+        let reg = mem_bus.read_u8(pc)?;
         if reg < NUM_REGISTERS as u8 {
             Ok(reg as usize)
         } else {
@@ -63,8 +63,8 @@ impl CupanaMachine {
         }
     }
 
-    pub fn step(&mut self, rom: &Rom, ram: &mut Ram) -> Result<(), VMError> {
-        let opcode = rom.read_u8(self.pc)?;
+    pub fn step(&mut self, mem_bus: &mut MemoryBus) -> Result<(), VMError> {
+        let opcode = mem_bus.read_u8(self.pc)?;
         match opcode {
             // NOP (0x00)
             0x00 => {
@@ -76,51 +76,51 @@ impl CupanaMachine {
             }
             // MOV reg reg (0x10)
             0x10 => {
-                let dest = self.get_register_index(self.pc + 1, rom)?;
-                let source = self.get_register_index(self.pc + 2, rom)?;
+                let dest = self.get_register_index(self.pc + 1, mem_bus)?;
+                let source = self.get_register_index(self.pc + 2, mem_bus)?;
                 self.registers[dest] = self.registers[source];
                 self.pc += 3;
             }
             // MOV reg lit (0x11)
             0x11 => {
-                let dest_idx = self.get_register_index(self.pc + 1, rom)?;
-                let source = rom.read_u16(self.pc + 2)?;
+                let dest_idx = self.get_register_index(self.pc + 1, mem_bus)?;
+                let source = mem_bus.read_u16(self.pc + 2)?;
                 self.registers[dest_idx] = source;
                 self.pc += 4;
             }
             // MOV reg mem (0x12)
             0x12 => {
-                let dest_idx = self.get_register_index(self.pc + 1, rom)?;
-                let source = rom.read_u16(self.pc + 2)?;
-                self.registers[dest_idx] = rom.read_u16(source)?;
+                let dest_idx = self.get_register_index(self.pc + 1, mem_bus)?;
+                let source = mem_bus.read_u16(self.pc + 2)?;
+                self.registers[dest_idx] = mem_bus.read_u16(source)?;
                 self.pc += 4;
             }
             // MOV reg reg* (0x13)
             0x13 => {
-                let dest_idx = self.get_register_index(self.pc + 1, rom)?;
-                let source_idx = self.get_register_index(self.pc + 2, rom)?;
-                self.registers[dest_idx] = rom.read_u16(self.registers[source_idx])?;
+                let dest_idx = self.get_register_index(self.pc + 1, mem_bus)?;
+                let source_idx = self.get_register_index(self.pc + 2, mem_bus)?;
+                self.registers[dest_idx] = mem_bus.read_u16(self.registers[source_idx])?;
                 self.pc += 3;
             }
             // MOV mem reg (0x14)
             0x14 => {
-                let dest = rom.read_u16(self.pc + 1)?;
-                let source_idx = self.get_register_index(self.pc + 3, rom)?;
-                ram.write_u16(dest, self.registers[source_idx])?;
+                let dest = mem_bus.read_u16(self.pc + 1)?;
+                let source_idx = self.get_register_index(self.pc + 3, mem_bus)?;
+                mem_bus.write_u16(dest, self.registers[source_idx])?;
                 self.pc += 4;
             }
             // MOV reg* reg (0x15)
             0x15 => {
-                let dest_idx = self.get_register_index(self.pc + 1, rom)?;
-                let source_idx = self.get_register_index(self.pc + 2, rom)?;
-                ram
+                let dest_idx = self.get_register_index(self.pc + 1, mem_bus)?;
+                let source_idx = self.get_register_index(self.pc + 2, mem_bus)?;
+                mem_bus
                     .write_u16(self.registers[dest_idx], self.registers[source_idx])?;
                 self.pc += 3;
             }
             // ADD reg reg (0x20)
             0x20 => {
-                let source1_idx = self.get_register_index(self.pc + 1, rom)?;
-                let source2_idx = self.get_register_index(self.pc + 2, rom)?;
+                let source1_idx = self.get_register_index(self.pc + 1, mem_bus)?;
+                let source2_idx = self.get_register_index(self.pc + 2, mem_bus)?;
 
                 let val1 = self.registers[source1_idx];
                 let val2 = self.registers[source2_idx];
@@ -133,9 +133,9 @@ impl CupanaMachine {
             }
             // ADD reg lit (0x21)
             0x21 => {
-                let source1_idx = self.get_register_index(self.pc + 1, rom)?;
+                let source1_idx = self.get_register_index(self.pc + 1, mem_bus)?;
                 let val1 = self.registers[source1_idx];
-                let val2 = rom.read_u16(self.pc + 2)?;
+                let val2 = mem_bus.read_u16(self.pc + 2)?;
 
                 let (result, carry_occurred) = val1.overflowing_add(val2);
                 self.registers[0] = result;
@@ -145,8 +145,8 @@ impl CupanaMachine {
             }
             // SUB reg reg (0x22)
             0x22 => {
-                let source1_idx = self.get_register_index(self.pc + 1, rom)?;
-                let source2_idx = self.get_register_index(self.pc + 2, rom)?;
+                let source1_idx = self.get_register_index(self.pc + 1, mem_bus)?;
+                let source2_idx = self.get_register_index(self.pc + 2, mem_bus)?;
 
                 let val1 = self.registers[source1_idx];
                 let val2 = self.registers[source2_idx];
@@ -159,9 +159,9 @@ impl CupanaMachine {
             }
             // SUB reg lit (0x23)
             0x23 => {
-                let source1_idx = self.get_register_index(self.pc + 1, rom)?;
+                let source1_idx = self.get_register_index(self.pc + 1, mem_bus)?;
                 let val1 = self.registers[source1_idx];
-                let val2 = rom.read_u16(self.pc + 2)?;
+                let val2 = mem_bus.read_u16(self.pc + 2)?;
 
                 let (result, carry_occurred) = val1.overflowing_sub(val2);
                 self.registers[0] = result;
@@ -171,8 +171,8 @@ impl CupanaMachine {
             }
             // SUB lit reg (0x24)
             0x24 => {
-                let val1 = rom.read_u16(self.pc + 1)?;
-                let source2_idx = self.get_register_index(self.pc + 3, rom)?;
+                let val1 = mem_bus.read_u16(self.pc + 1)?;
+                let source2_idx = self.get_register_index(self.pc + 3, mem_bus)?;
                 let val2 = self.registers[source2_idx];
 
                 let (result, carry_occurred) = val1.overflowing_sub(val2);
@@ -183,8 +183,8 @@ impl CupanaMachine {
             }
             // MUL reg reg (0x25)
             0x25 => {
-                let source1_idx = self.get_register_index(self.pc + 1, rom)?;
-                let source2_idx = self.get_register_index(self.pc + 2, rom)?;
+                let source1_idx = self.get_register_index(self.pc + 1, mem_bus)?;
+                let source2_idx = self.get_register_index(self.pc + 2, mem_bus)?;
 
                 let val1 = self.registers[source1_idx];
                 let val2 = self.registers[source2_idx];
@@ -197,9 +197,9 @@ impl CupanaMachine {
             }
             // MUL reg lit (0x26)
             0x26 => {
-                let source1_idx = self.get_register_index(self.pc + 1, rom)?;
+                let source1_idx = self.get_register_index(self.pc + 1, mem_bus)?;
                 let val1 = self.registers[source1_idx];
-                let val2 = rom.read_u16(self.pc + 2)?;
+                let val2 = mem_bus.read_u16(self.pc + 2)?;
 
                 let (result, carry_occurred) = val1.overflowing_mul(val2);
                 self.registers[0] = result;
@@ -209,8 +209,8 @@ impl CupanaMachine {
             }
             // DIV reg reg (0x27)
             0x27 => {
-                let source1_idx = self.get_register_index(self.pc + 1, rom)?;
-                let source2_idx = self.get_register_index(self.pc + 2, rom)?;
+                let source1_idx = self.get_register_index(self.pc + 1, mem_bus)?;
+                let source2_idx = self.get_register_index(self.pc + 2, mem_bus)?;
 
                 let val1 = self.registers[source1_idx];
                 let val2 = self.registers[source2_idx];
@@ -227,9 +227,9 @@ impl CupanaMachine {
             }
             // DIV reg lit (0x28)
             0x28 => {
-                let source1_idx = self.get_register_index(self.pc + 1, rom)?;
+                let source1_idx = self.get_register_index(self.pc + 1, mem_bus)?;
                 let val1 = self.registers[source1_idx];
-                let val2 = rom.read_u16(self.pc + 2)?;
+                let val2 = mem_bus.read_u16(self.pc + 2)?;
 
                 if val2 == 0 {
                     return Err(VMError::DivideByZero); // Ou lidar via exceção se implementado
@@ -243,8 +243,8 @@ impl CupanaMachine {
             }
             // DIV lit reg (0x29)
             0x29 => {
-                let val1 = rom.read_u16(self.pc + 1)?;
-                let source2_idx = self.get_register_index(self.pc + 3, rom)?;
+                let val1 = mem_bus.read_u16(self.pc + 1)?;
+                let source2_idx = self.get_register_index(self.pc + 3, mem_bus)?;
                 let val2 = self.registers[source2_idx];
 
                 if val2 == 0 {
@@ -259,8 +259,8 @@ impl CupanaMachine {
             }
             // MOD reg reg (0x2A)
             0x2A => {
-                let source1_idx = self.get_register_index(self.pc + 1, rom)?;
-                let source2_idx = self.get_register_index(self.pc + 2, rom)?;
+                let source1_idx = self.get_register_index(self.pc + 1, mem_bus)?;
+                let source2_idx = self.get_register_index(self.pc + 2, mem_bus)?;
 
                 let val1 = self.registers[source1_idx];
                 let val2 = self.registers[source2_idx];
@@ -277,9 +277,9 @@ impl CupanaMachine {
             }
             // MOD reg lit (0x2B)
             0x2B => {
-                let source1_idx = self.get_register_index(self.pc + 1, rom)?;
+                let source1_idx = self.get_register_index(self.pc + 1, mem_bus)?;
                 let val1 = self.registers[source1_idx];
-                let val2 = rom.read_u16(self.pc + 2)?;
+                let val2 = mem_bus.read_u16(self.pc + 2)?;
 
                 if val2 == 0 {
                     return Err(VMError::DivideByZero); // Ou lidar via exceção se implementado
@@ -295,8 +295,8 @@ impl CupanaMachine {
             }
             // MOD lit reg (0x2C)
             0x2C => {
-                let val1 = rom.read_u16(self.pc + 1)?;
-                let source2_idx = self.get_register_index(self.pc + 3, rom)?;
+                let val1 = mem_bus.read_u16(self.pc + 1)?;
+                let source2_idx = self.get_register_index(self.pc + 3, mem_bus)?;
                 let val2 = self.registers[source2_idx];
 
                 if val2 == 0 {
@@ -311,7 +311,7 @@ impl CupanaMachine {
             }
             // INC (0x2D)
             0x2D => {
-                let idx = self.get_register_index(self.pc + 1, rom)?;
+                let idx = self.get_register_index(self.pc + 1, mem_bus)?;
                 let val1 = self.registers[idx];
 
                 let (result, carry_occurred) = val1.overflowing_add(1);
@@ -322,7 +322,7 @@ impl CupanaMachine {
             }
             // DEC (0x2E)
             0x2E => {
-                let idx = self.get_register_index(self.pc + 1, rom)?;
+                let idx = self.get_register_index(self.pc + 1, mem_bus)?;
                 let val1 = self.registers[idx];
 
                 let (result, carry_occurred) = val1.overflowing_sub(1);
@@ -334,8 +334,8 @@ impl CupanaMachine {
 
             // AND reg reg (0x30)
             0x30 => {
-                let source1_idx = self.get_register_index(self.pc + 1, rom)?;
-                let source2_idx = self.get_register_index(self.pc + 2, rom)?;
+                let source1_idx = self.get_register_index(self.pc + 1, mem_bus)?;
+                let source2_idx = self.get_register_index(self.pc + 2, mem_bus)?;
 
                 let val1 = self.registers[source1_idx];
                 let val2 = self.registers[source2_idx];
@@ -348,8 +348,8 @@ impl CupanaMachine {
             }
             // OR reg reg (0x31)
             0x31 => {
-                let source1_idx = self.get_register_index(self.pc + 1, rom)?;
-                let source2_idx = self.get_register_index(self.pc + 2, rom)?;
+                let source1_idx = self.get_register_index(self.pc + 1, mem_bus)?;
+                let source2_idx = self.get_register_index(self.pc + 2, mem_bus)?;
 
                 let val1 = self.registers[source1_idx];
                 let val2 = self.registers[source2_idx];
@@ -362,8 +362,8 @@ impl CupanaMachine {
             }
             // XOR reg reg (0x32)
             0x32 => {
-                let source1_idx = self.get_register_index(self.pc + 1, rom)?;
-                let source2_idx = self.get_register_index(self.pc + 2, rom)?;
+                let source1_idx = self.get_register_index(self.pc + 1, mem_bus)?;
+                let source2_idx = self.get_register_index(self.pc + 2, mem_bus)?;
 
                 let val1 = self.registers[source1_idx];
                 let val2 = self.registers[source2_idx];
@@ -376,7 +376,7 @@ impl CupanaMachine {
             }
             // NOT reg (0x33)
             0x33 => {
-                let source1_idx = self.get_register_index(self.pc + 1, rom)?;
+                let source1_idx = self.get_register_index(self.pc + 1, mem_bus)?;
 
                 let val1 = self.registers[source1_idx];
 
@@ -389,8 +389,8 @@ impl CupanaMachine {
 
             // CMP reg reg (0x40)
             0x40 => {
-                let source1_idx = self.get_register_index(self.pc + 1, rom)?;
-                let source2_idx = self.get_register_index(self.pc + 2, rom)?;
+                let source1_idx = self.get_register_index(self.pc + 1, mem_bus)?;
+                let source2_idx = self.get_register_index(self.pc + 2, mem_bus)?;
 
                 let val1 = self.registers[source1_idx];
                 let val2 = self.registers[source2_idx];
@@ -402,9 +402,9 @@ impl CupanaMachine {
             }
             // CMP reg lit (0x41)
             0x41 => {
-                let source1_idx = self.get_register_index(self.pc + 1, rom)?;
+                let source1_idx = self.get_register_index(self.pc + 1, mem_bus)?;
                 let val1 = self.registers[source1_idx];
-                let val2 = rom.read_u16(self.pc + 2)?;
+                let val2 = mem_bus.read_u16(self.pc + 2)?;
 
                 let (result, carry_occurred) = val1.overflowing_sub(val2);
 
@@ -414,18 +414,18 @@ impl CupanaMachine {
 
             // JMP lit (0x50)
             0x50 => {
-                let addr = rom.read_u16(self.pc + 1)?;
+                let addr = mem_bus.read_u16(self.pc + 1)?;
                 self.pc = addr;
             }
             // JMP reg (0x51)
             0x51 => {
-                let source_idx = self.get_register_index(self.pc + 1, rom)?;
+                let source_idx = self.get_register_index(self.pc + 1, mem_bus)?;
                 let addr = self.registers[source_idx];
                 self.pc = addr;
             }
             // JZ lit (0x52)
             0x52 => {
-                let addr = rom.read_u16(self.pc + 1)?;
+                let addr = mem_bus.read_u16(self.pc + 1)?;
                 if self.is_flag_set(FLAG_ZERO) {
                     self.pc = addr;
                 } else {
@@ -434,7 +434,7 @@ impl CupanaMachine {
             }
             // JZ reg (0x53)
             0x53 => {
-                let source_idx = self.get_register_index(self.pc + 1, rom)?;
+                let source_idx = self.get_register_index(self.pc + 1, mem_bus)?;
                 let addr = self.registers[source_idx];
                 if self.is_flag_set(FLAG_ZERO) {
                     self.pc = addr;
@@ -444,7 +444,7 @@ impl CupanaMachine {
             }
             // JNZ lit (0x54)
             0x54 => {
-                let addr = rom.read_u16(self.pc + 1)?;
+                let addr = mem_bus.read_u16(self.pc + 1)?;
                 if !self.is_flag_set(FLAG_ZERO) {
                     self.pc = addr;
                 } else {
@@ -453,7 +453,7 @@ impl CupanaMachine {
             }
             // JNZ reg (0x55)
             0x55 => {
-                let source_idx = self.get_register_index(self.pc + 1, rom)?;
+                let source_idx = self.get_register_index(self.pc + 1, mem_bus)?;
                 let addr = self.registers[source_idx];
                 if !self.is_flag_set(FLAG_ZERO) {
                     self.pc = addr;
@@ -463,7 +463,7 @@ impl CupanaMachine {
             }
             // JN lit (0x56)
             0x56 => {
-                let addr = rom.read_u16(self.pc + 1)?;
+                let addr = mem_bus.read_u16(self.pc + 1)?;
                 if self.is_flag_set(FLAG_NEGATIVE) {
                     self.pc = addr;
                 } else {
@@ -472,7 +472,7 @@ impl CupanaMachine {
             }
             // JN reg (0x57)
             0x57 => {
-                let source_idx = self.get_register_index(self.pc + 1, rom)?;
+                let source_idx = self.get_register_index(self.pc + 1, mem_bus)?;
                 let addr = self.registers[source_idx];
                 if self.is_flag_set(FLAG_NEGATIVE) {
                     self.pc = addr;
@@ -482,7 +482,7 @@ impl CupanaMachine {
             }
             // JNN lit (0x58)
             0x58 => {
-                let addr = rom.read_u16(self.pc + 1)?;
+                let addr = mem_bus.read_u16(self.pc + 1)?;
                 if !self.is_flag_set(FLAG_NEGATIVE) {
                     self.pc = addr;
                 } else {
@@ -491,7 +491,7 @@ impl CupanaMachine {
             }
             // JNN reg (0x59)
             0x59 => {
-                let source_idx = self.get_register_index(self.pc + 1, rom)?;
+                let source_idx = self.get_register_index(self.pc + 1, mem_bus)?;
                 let addr = self.registers[source_idx];
                 if !self.is_flag_set(FLAG_NEGATIVE) {
                     self.pc = addr;
@@ -501,7 +501,7 @@ impl CupanaMachine {
             }
             // JC lit (0x5A)
             0x5A => {
-                let addr = rom.read_u16(self.pc + 1)?;
+                let addr = mem_bus.read_u16(self.pc + 1)?;
                 if self.is_flag_set(FLAG_CARRY) {
                     self.pc = addr;
                 } else {
@@ -510,7 +510,7 @@ impl CupanaMachine {
             }
             // JC reg (0x5B)
             0x5B => {
-                let source_idx = self.get_register_index(self.pc + 1, rom)?;
+                let source_idx = self.get_register_index(self.pc + 1, mem_bus)?;
                 let addr = self.registers[source_idx];
                 if self.is_flag_set(FLAG_CARRY) {
                     self.pc = addr;
@@ -520,7 +520,7 @@ impl CupanaMachine {
             }
             // JNC lit (0xC8)
             0x5C => {
-                let addr = rom.read_u16(self.pc + 1)?;
+                let addr = mem_bus.read_u16(self.pc + 1)?;
                 if !self.is_flag_set(FLAG_CARRY) {
                     self.pc = addr;
                 } else {
@@ -529,7 +529,7 @@ impl CupanaMachine {
             }
             // JNC reg (0xD9)
             0x5D => {
-                let source_idx = self.get_register_index(self.pc + 1, rom)?;
+                let source_idx = self.get_register_index(self.pc + 1, mem_bus)?;
                 let addr = self.registers[source_idx];
                 if !self.is_flag_set(FLAG_CARRY) {
                     self.pc = addr;
@@ -540,7 +540,7 @@ impl CupanaMachine {
 
             // CALL lit (0x60)
             0x60 => {
-                let target_addr = rom.read_u16(self.pc + 1)?;
+                let target_addr = mem_bus.read_u16(self.pc + 1)?;
                 let return_addr = self.pc + 3;
                 self.stack.push(return_addr);
                 self.pc = target_addr;
@@ -568,3 +568,4 @@ impl Display for CupanaMachine {
         )
     }
 }
+
