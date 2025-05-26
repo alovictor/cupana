@@ -1,3 +1,5 @@
+use std::fmt::Display;
+
 use crate::{
     error::VMError,
     memory::{Memory, Ram, Rom},
@@ -21,7 +23,7 @@ impl CupanaMachine {
         Self {
             registers: [0; NUM_REGISTERS],
             stack: Vec::new(),
-            pc: 0,
+            pc: 0x100,
             flags: 0,
         }
     }
@@ -63,7 +65,6 @@ impl CupanaMachine {
 
     pub fn step(&mut self, rom: &Rom, ram: &mut Ram) -> Result<(), VMError> {
         let opcode = rom.read_u8(self.pc)?;
-        println!("OP {:02X} Reg {:?}", opcode, self.registers);
         match opcode {
             // NOP (0x00)
             0x00 => {
@@ -553,6 +554,17 @@ impl CupanaMachine {
                 return Err(VMError::InvalidOpcode(opcode));
             }
         }
+        // println!("OP {:02X} Reg {:?}", opcode, self.registers);
         Ok(())
+    }
+}
+
+impl Display for CupanaMachine {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "CupanaMachine {{\n  registers: {:?},\n  stack: {:?},\n  pc: {},\n  flags: {:08b}\n}}",
+            self.registers, self.stack, self.pc, self.flags
+        )
     }
 }

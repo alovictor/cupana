@@ -1,30 +1,30 @@
 use logos::Logos;
 
 #[derive(Logos, Debug, PartialEq, Clone)]
-#[logos(skip r"[ \t\n\f]+")]
+#[logos(skip r"[ \t\r\f]+")]
 pub enum Token {
     // Comentários
     #[regex(r";[^\n]*", logos::skip)]
     Comment,
 
     // Números literais
-    #[regex(r"\$[0-9]+", |lex| lex.slice()[1..].parse::<u16>())]
+    #[regex(r"\$[0-9]+", |lex| lex.slice()[1..].parse::<u16>().ok())]
     DecimalLiteral(u16),
 
-    #[regex(r"#[0-9a-fA-F]+", |lex| u16::from_str_radix(&lex.slice()[1..], 16))]
+    #[regex(r"#[0-9a-fA-F]+", |lex| u16::from_str_radix(&lex.slice()[1..], 16).ok())]
     HexLiteral(u16),
 
     // Registradores
     #[regex(r"[Rr][0-9]+", |lex| {
         let num_str = &lex.slice()[1..];
-        num_str.parse::<u8>()
+        num_str.parse::<u8>().ok()
     })]
     Register(u8),
 
     // Registrador indireto
     #[regex(r"[Rr][0-9]+\*", |lex| {
         let num_str = &lex.slice()[1..lex.slice().len()-1];
-        num_str.parse::<u8>()
+        num_str.parse::<u8>().ok()
     })]
     RegisterIndirect(u8),
 
@@ -125,9 +125,15 @@ impl<'a> Lexer<'a> {
     }
 
     pub fn advance(&mut self) {
-        self.current_token = self.logos_lexer.next();
-        if let Some(Token::Newline) = self.current_token {
-            self.line += 1;
+        let token = self.logos_lexer.next();
+        match token {
+            Some(res) => {
+                match res {
+                    Ok(tk) => self.current_token = Some(tk),
+                    Err(e) => println!("Error: {:?}", e),
+                }
+            },
+            None => self.current_token = None,
         }
     }
 

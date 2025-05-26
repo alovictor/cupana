@@ -1,4 +1,4 @@
-use crate::assembler::lexer::{Lexer, Token};
+use crate::casm::lexer::{Lexer, Token};
 use crate::error::AssembleError;
 use indexmap::IndexMap;
 

@@ -1,3 +1,5 @@
+use std::fmt::Display;
+
 use crate::error::CError;
 use crate::machine::CupanaMachine;
 use crate::memory::{Rom, Ram};
@@ -32,5 +34,15 @@ impl Cupana {
             }
         }
         Ok(())
-    }   
+    }
+}
+
+impl Display for Cupana {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        writeln!(f, "Cupana Machine State:")?;
+        writeln!(f, "{}", self.cpu)?;
+        writeln!(f, "ROM:\n{}", self.rom)?;
+        writeln!(f, "RAM:\n{}", self.ram)?;
+        writeln!(f, "Running: {}", self.running)
+    }
 }
