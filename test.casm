@@ -1,0 +1,16 @@
+MOV R1 #F000  ; Endereço do registrador de dados do terminal
+
+MOV R1* $72  ; H
+MOV R1* $101 ; E
+MOV R1* $108 ; L
+MOV R1* $108 ; L
+MOV R1* $111 ; O
+MOV R1* $32  ; 
+MOV R1* $87  ; W
+MOV R1* $111 ; O
+MOV R1* $114 ; R
+MOV R1* $108 ; L
+MOV R1* $100 ; D
+MOV R1* $33  ; !
+
+HLT

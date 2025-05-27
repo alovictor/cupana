@@ -6,6 +6,15 @@ uma cpu de 16bits
     - reg 0: acc
     - reg 1 .. reg15: general purpuse
 
+## Address Space
+
+| Type    | Range           | Size |
+|---------|-----------------|------|
+| ROM     | 0x0000 - 0x7FFF | 32kb |
+| RAM     | 0x8000 - 0xDFFF | 28kb |
+| Stack   | 0xE000 - 0xEFFF | 4kb  |
+| Devices | 0xF000 - 0xFFFF | 4kb  |
+
 ## Flags
 
 | NAME      | POSITION    |
@@ -29,6 +38,9 @@ uma cpu de 16bits
 | 6  | MOV         | 0X13   | Load Register with value from Memory Indirect  | MOV Reg Reg* | Data Transfer |
 | 7  | MOV         | 0x14   | Stores value from Register                     | MOV Mem Reg  | Data Transfer |
 | 8  | MOV         | 0x15   | Stores value from Register Indirect            | MOV Reg* Reg | Data Transfer |
+| 9  | MOV         | 0x16   | Stores value from Literal                      | MOV Reg* Lit | Data Transfer |
+| 9  | PHR         | 0x17   | Push register value to stack                   | PHR Reg      | Data Transfer |
+| 9  | PLA         | 0x18   | Pull value from stack                          | PLR Reg      | Data Transfer |
 | 9  | ADD         | 0x20   | Add two Registers                              | ADD Reg Reg  | Arithmetic    |
 | 10 | ADD         | 0x21   | Add Register with Literal                      | ADD Reg Lit  | Arithmetic    |
 | 11 | SUB         | 0x22   | Subtract two Registers                         | SUB Reg Reg  | Arithmetic    |

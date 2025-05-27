@@ -9,7 +9,7 @@ use clap::Parser;
 use casm::Assembler;
 use cupana::Cupana;
 use error::CError;
-use devices::console::SimpleTerminal; // Importe seu dispositivo
+use devices::console::CupanaConsole; // Importe seu dispositivo
 use memory::MMIO_BASE; // Importe o endereço base de MMIO
 
 #[derive(Parser, Debug)]
@@ -27,7 +27,7 @@ fn main() -> Result<(), CError> {
     let mut cupana_vm = Cupana::new();
     cupana_vm.load_program(&program_bytes);
 
-    let terminal = SimpleTerminal::new(MMIO_BASE); 
+    let terminal = CupanaConsole::new(MMIO_BASE); 
     cupana_vm.register_device(Box::new(terminal));
 
     cupana_vm.run()?;
