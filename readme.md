@@ -37,10 +37,11 @@ uma cpu de 16bits
 | 5  | MOV         | 0X12   | Load Register with value from Memory Direct    | MOV Reg Mem  | Data Transfer |
 | 6  | MOV         | 0X13   | Load Register with value from Memory Indirect  | MOV Reg Reg* | Data Transfer |
 | 7  | MOV         | 0x14   | Stores value from Register                     | MOV Mem Reg  | Data Transfer |
-| 8  | MOV         | 0x15   | Stores value from Register Indirect            | MOV Reg* Reg | Data Transfer |
-| 9  | MOV         | 0x16   | Stores value from Literal                      | MOV Reg* Lit | Data Transfer |
-| 9  | PHR         | 0x17   | Push register value to stack                   | PHR Reg      | Data Transfer |
-| 9  | PLA         | 0x18   | Pull value from stack                          | PLR Reg      | Data Transfer |
+| 9  | MOV         | 0x15   | Stores value from Literal                      | MOV Mem Lit  | Data Transfer |
+| 8  | MOV         | 0x16   | Stores value from Register Indirect            | MOV Reg* Reg | Data Transfer |
+| 9  | MOV         | 0x17   | Stores value from Literal Indirect             | MOV Reg* Lit | Data Transfer |
+| 9  | PHR         | 0x18   | Push register value to stack                   | PHR Reg      | Data Transfer |
+| 9  | PLA         | 0x19   | Pull value from stack                          | PLR Reg      | Data Transfer |
 | 9  | ADD         | 0x20   | Add two Registers                              | ADD Reg Reg  | Arithmetic    |
 | 10 | ADD         | 0x21   | Add Register with Literal                      | ADD Reg Lit  | Arithmetic    |
 | 11 | SUB         | 0x22   | Subtract two Registers                         | SUB Reg Reg  | Arithmetic    |

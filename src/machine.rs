@@ -2,7 +2,7 @@ use std::fmt::Display;
 
 use crate::{
     error::VMError,
-    memory::{MemoryBus, Memory, STACK_END},
+    memory::{Memory, MemoryBus, STACK_END},
 };
 
 const NUM_REGISTERS: usize = 0x10; // 16 registradores
@@ -14,7 +14,7 @@ const FLAG_HALT: u8 = 0b1000_0000;
 pub struct CupanaMachine {
     registers: [u16; NUM_REGISTERS],
     pc: u16,
-    sp : u16,
+    sp: u16,
     flags: u8,
 }
 
@@ -54,16 +54,16 @@ impl CupanaMachine {
         }
     }
 
-    fn push_u8(&mut self, mem_bus: &mut MemoryBus, value: u8) -> Result<(), VMError> {
-        mem_bus.write_u8(self.sp, value)?;
-        self.sp -= 1;
-        Ok(())
-    }
+    // fn push_u8(&mut self, mem_bus: &mut MemoryBus, value: u8) -> Result<(), VMError> {
+    //     mem_bus.write_u8(self.sp, value)?;
+    //     self.sp -= 1;
+    //     Ok(())
+    // }
 
-    fn pop_u8(&mut self, mem_bus: &mut MemoryBus) -> Result<u8, VMError> {
-        self.sp += 1;
-        Ok(mem_bus.read_u8(self.sp)?)
-    }
+    // fn pop_u8(&mut self, mem_bus: &mut MemoryBus) -> Result<u8, VMError> {
+    //     self.sp += 1;
+    //     Ok(mem_bus.read_u8(self.sp)?)
+    // }
 
     fn push_u16(&mut self, mem_bus: &mut MemoryBus, value: u16) -> Result<(), VMError> {
         mem_bus.write_u16(self.sp, value)?;
@@ -75,7 +75,6 @@ impl CupanaMachine {
         self.sp += 2;
         Ok(mem_bus.read_u16(self.sp)?)
     }
-
 
     fn get_register_index(&self, pc: u16, mem_bus: &mut MemoryBus) -> Result<usize, VMError> {
         let reg = mem_bus.read_u8(pc)?;
@@ -132,30 +131,35 @@ impl CupanaMachine {
                 mem_bus.write_u16(dest, self.registers[source_idx])?;
                 self.pc += 4;
             }
-            // MOV reg* reg (0x15)
+            // MOV mem lit (0x15)
             0x15 => {
-                let dest_idx = self.get_register_index(self.pc + 1, mem_bus)?;
-                let source_idx = self.get_register_index(self.pc + 2, mem_bus)?;
-                mem_bus
-                    .write_u16(self.registers[dest_idx], self.registers[source_idx])?;
-                self.pc += 3;
-            }
-            // MOV reg* lit (0x16)
-            0x16 => {
-                let dest_idx = self.get_register_index(self.pc + 1, mem_bus)?;
-                let source = mem_bus.read_u16(self.pc + 2)?;
-                mem_bus
-                    .write_u16(self.registers[dest_idx], source)?;
+                let dest = mem_bus.read_u16(self.pc + 1)?;
+                let source = mem_bus.read_u16(self.pc + 3)?;
+                mem_bus.write_u16(dest, source)?;
                 self.pc += 4;
             }
-            // PHR Reg (0x17)
+            // MOV reg* reg (0x16)
+            0x16 => {
+                let dest_idx = self.get_register_index(self.pc + 1, mem_bus)?;
+                let source_idx = self.get_register_index(self.pc + 2, mem_bus)?;
+                mem_bus.write_u16(self.registers[dest_idx], self.registers[source_idx])?;
+                self.pc += 3;
+            }
+            // MOV reg* lit (0x17)
             0x17 => {
+                let dest_idx = self.get_register_index(self.pc + 1, mem_bus)?;
+                let source = mem_bus.read_u16(self.pc + 2)?;
+                mem_bus.write_u16(self.registers[dest_idx], source)?;
+                self.pc += 4;
+            }
+            // PHR Reg (0x18)
+            0x18 => {
                 let src_idx = self.get_register_index(self.pc + 1, mem_bus)?;
                 self.push_u16(mem_bus, self.registers[src_idx])?;
                 self.pc += 2;
             }
-            // PLR Reg (0x18)
-            0x18 => {
+            // PLR Reg (0x19)
+            0x19 => {
                 let dest_idx = self.get_register_index(self.pc + 1, mem_bus)?;
                 self.registers[dest_idx] = self.pop_u16(mem_bus)?;
                 self.pc += 2;
@@ -611,4 +615,3 @@ impl Display for CupanaMachine {
         )
     }
 }
-

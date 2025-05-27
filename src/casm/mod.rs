@@ -134,7 +134,7 @@ impl Assembler {
             Operand::Literal(_) | Operand::LabelRef(_) => Ok(ResolvedOperandType::LiteralLike),
             Operand::Alias(name) => {
                 let resolved = aliases.get(name)
-                    .ok_or_else(|| AssembleError::GenericError(format!("Unknown alias for size calculation: '{}'", name)))?;
+                .ok_or_else(|| AssembleError::GenericError(format!("Unknown alias for size calculation: '{}'", name)))?;
                 self.resolve_operand_for_size(resolved, aliases, depth + 1)
             }
         }
@@ -158,6 +158,7 @@ impl Assembler {
                     (ResolvedOperandType::RegisterLike, ResolvedOperandType::RegisterLike) => Ok(1 + 1 + 1), // MOV Reg, Reg (0x10)
                     (ResolvedOperandType::RegisterLike, ResolvedOperandType::LiteralLike) => Ok(1 + 1 + 2),  // MOV Reg, Lit (0x11) / MOV Reg, Mem (0x12) - casm uses 0x11
                     (ResolvedOperandType::LiteralLike, ResolvedOperandType::RegisterLike) => Ok(1 + 2 + 1), // MOV Mem, Reg (0x14)
+                    (ResolvedOperandType::LiteralLike, ResolvedOperandType::LiteralLike) => Ok(1 + 2 + 2),
                     _ => Err(AssembleError::GenericError(format!("Unsupported MOV operand combination for size: {:?} -> {:?}", dest, src))),
                 }
             }
@@ -344,18 +345,23 @@ impl Assembler {
                 self.emit_operand_reg(&resolved_dest, aliases, labels)?;
                 self.emit_operand_reg(&resolved_src, aliases, labels)?; // Emits the register number part of Reg*
             }
-            (Operand::RegisterIndirect(_), Operand::Register(_)) => { // MOV Reg*, Reg
-                self.emit_byte(0x15);
-                self.emit_operand_reg(&resolved_dest, aliases, labels)?; // Emits the register number part of Reg*
-                self.emit_operand_reg(&resolved_src, aliases, labels)?;
-            }
             (Operand::Literal(_), Operand::Register(_)) => { // MOV Mem, Reg (where Mem is a literal address)
                 self.emit_byte(0x14); 
                 self.emit_operand_literal(&resolved_dest, aliases, labels)?; // The memory address
                 self.emit_operand_reg(&resolved_src, aliases, labels)?;     // The source register
             }
-            (Operand::RegisterIndirect(_), Operand::Literal(_)) => { // MOV Reg*, Lit
+            (Operand::Literal(_), Operand::Literal(_)) => { // MOV Mem, Lit
+                self.emit_byte(0x15);
+                self.emit_operand_literal(&resolved_dest, aliases, labels)?;
+                self.emit_operand_literal(&resolved_src, aliases, labels)?;
+            }
+            (Operand::RegisterIndirect(_), Operand::Register(_)) => { // MOV Reg*, Reg
                 self.emit_byte(0x16);
+                self.emit_operand_reg(&resolved_dest, aliases, labels)?; // Emits the register number part of Reg*
+                self.emit_operand_reg(&resolved_src, aliases, labels)?;
+            }
+            (Operand::RegisterIndirect(_), Operand::Literal(_)) => { // MOV Reg*, Lit
+                self.emit_byte(0x17);
                 self.emit_operand_reg(&resolved_dest, aliases, labels)?;
                 self.emit_operand_literal(&resolved_src, aliases, labels)?;
             }
