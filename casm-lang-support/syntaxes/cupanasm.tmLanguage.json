@@ -1,0 +1,102 @@
+{
+    "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+    "name": "Cupanasm",
+    "scopeName": "source.casm",
+    "patterns": [
+        {
+            "include": "#comments"
+        },
+        {
+            "include": "#keywords"
+        },
+        {
+            "include": "#instructions"
+        },
+        {
+            "include": "#registers"
+        },
+        {
+            "include": "#literals"
+        },
+        {
+            "include": "#aliases"
+        },
+        {
+            "include": "#labels"
+        },
+        {
+            "include": "#directives"
+        }
+    ],
+    "repository": {
+        "comments": {
+            "patterns": [
+                {
+                    "name": "comment.line.semicolon.casm",
+                    "match": ";.*"
+                }
+            ]
+        },
+        "keywords": { },
+        "instructions": {
+            "patterns": [
+                {
+                    "name": "keyword.control.casm",
+                    "match": "\\b(?i)(NOP|HLT|MOV|PHR|PLR|ADD|SUB|MUL|DIV|MOD|INC|DEC|AND|OR|XOR|NOT|CMP|JMP|JZ|JNZ|JN|JNN|JC|JNC|JSB|RSB|CLI|SEI|RSI)\\b"
+                }
+            ]
+        },
+        "registers": {
+            "patterns": [
+                {
+                    "name": "variable.language.register.indirect.casm",
+                    "match": "\\b(?i)R([0-9]|1[0-5])\\*\\b"
+                },
+                {
+                    "name": "variable.language.register.casm", 
+                    "match": "\\b(?i)R([0-9]|1[0-5])\\b"
+                }
+            ]
+        },
+        "literals": {
+            "patterns": [
+                {
+                    "name": "constant.numeric.decimal.casm",
+                    "match": "\\$[0-9]+"
+                },
+                {
+                    "name": "constant.numeric.hex.casm",
+                    "match": "#[0-9a-fA-F]+"
+                }
+            ]
+        },
+        "aliases": {
+            "patterns": [
+                {
+                    "name": "variable.other.alias.casm",
+                    "match": "![a-zA-Z_][a-zA-Z0-9_]*"
+                }
+            ]
+        },
+        "labels": {
+            "patterns": [
+                {
+                    "name": "entity.name.function.label.definition.casm",
+                    "match": "\\([a-zA-Z_][a-zA-Z0-9_]*\\):"
+                },
+                {
+                    "name": "entity.name.function.label.reference.casm",
+                    "match": "\\b[a-zA-Z_][a-zA-Z0-9_]*\\b(?=:)"
+                }
+            ]
+        },
+        "directives": {
+            "patterns": [
+                {
+                    "name": "keyword.directive.casm",
+                    "match": "\\.(?i)(org|word)\\b"
+                }
+            ]
+        }
+    }
+}

@@ -1,5 +1,7 @@
 !cr #F000
 
+string: .word "Hello World!"
+
 reset:
     MOV !cr $72  ; H
     MOV !cr $101 ; E
@@ -13,19 +15,19 @@ reset:
     MOV !cr $108 ; L
     MOV !cr $100 ; D
     MOV !cr $33  ; !
-    MOV acc $33
-    call print_char
+    MOV r0 $33
+    jsb print_char
     HLT
 
 print_char:
-    mov #F000 acc
-    ret
+    mov #F000 r0
+    rsb
 
 nmi:
 irq:
-    MOV acc $33
-    call print_char
-    rti
+    MOV r0 $33
+    jsb print_char
+    rsi
 
 .org #7FFA
 .word nmi

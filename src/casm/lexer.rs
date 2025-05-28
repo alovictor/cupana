@@ -15,7 +15,7 @@ pub enum Token {
     HexLiteral(u16),
 
     // Registradores
-    #[regex(r"[Rr][1-9]+", |lex| {
+    #[regex(r"[Rr][0-9]+", |lex| {
         let num_str = &lex.slice()[1..];
         num_str.parse::<u8>().ok()
     })]
@@ -35,6 +35,10 @@ pub enum Token {
     // Labels
     #[regex(r"[a-zA-Z_][a-zA-Z0-9_]*:", |lex| lex.slice()[..lex.slice().len()-1].to_string())]
     Label(String),
+
+    // String char
+    #[regex(r#""[^"]*""#, |lex| lex.slice()[1..lex.slice().len()-1].to_string())]
+    CharString(String),
 
     // Instruções
     #[token("NOP", ignore(case))]

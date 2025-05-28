@@ -9,6 +9,7 @@ pub enum Operand {
     Literal(u16),
     Alias(String),
     LabelRef(String),
+    CharString(String)
 }
 
 #[derive(Debug, Clone)]
@@ -305,6 +306,11 @@ impl<'a> Parser<'a> {
                 let n = name.clone();
                 self.lexer.advance();
                 Ok(Operand::LabelRef(n))
+            }
+            Some(Token::CharString(val)) => {
+                let v = val.clone();
+                self.lexer.advance();
+                Ok(Operand::CharString(v))
             }
             other => Err(AssembleError::ParseError(
                 format!("Expected operand, found {:?} at line {}", other, self.lexer.line())

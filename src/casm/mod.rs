@@ -15,19 +15,15 @@ enum ResolvedOperandType {
 }
 
 pub struct Assembler {
-    // program: Option<Program>, // Not directly used in methods after parsing, consider removing or using
     output: [u8; 0x8000],
     current_address: u16,
-    org_address: u16,
 }
 
 impl Assembler {
     pub fn new() -> Self {
         Self {
-            // program: None, // Parsed program is passed by arg where needed
             output: [0; 0x8000],
             current_address: 0,
-            org_address: 0,
         }
     }
 
@@ -61,7 +57,7 @@ impl Assembler {
     }
 
     fn first_pass(&mut self, program: &mut Program) -> Result<(), AssembleError> {
-        let mut address = self.org_address; // Start with the initial org address
+        let mut address = 0; // Start with the initial org address
 
         for statement in &program.statements {
             match statement {
@@ -84,6 +80,11 @@ impl Assembler {
                     "word" => match value {
                         Operand::LabelRef(_) | Operand::Literal(_) => {
                             address += 2;
+                        }
+                        Operand::CharString(str) => {
+                            for _ in str.chars() {
+                                address += 2;
+                            }
                         }
                         _ => {}
                     },
@@ -123,6 +124,12 @@ impl Assembler {
                                 self.emit_u16(*addr);
                             }
                         }
+                        Operand::CharString(str) => {
+                            for c in str.chars() {
+                                self.emit_u16(c as u16);
+                            }
+                            self.emit_u16(0); // Null-terminator
+                        }
                         _ => {}
                     },
                     _ => {}
@@ -148,9 +155,7 @@ impl Assembler {
         }
 
         match operand {
-            Operand::Register(_) | Operand::RegisterIndirect(_) => {
-                Ok(ResolvedOperandType::RegisterLike)
-            }
+            Operand::Register(_) | Operand::RegisterIndirect(_) => Ok(ResolvedOperandType::RegisterLike),
             Operand::Literal(_) | Operand::LabelRef(_) => Ok(ResolvedOperandType::LiteralLike),
             Operand::Alias(name) => {
                 let resolved = aliases.get(name).ok_or_else(|| {
@@ -161,6 +166,7 @@ impl Assembler {
                 })?;
                 self.resolve_operand_for_size(resolved, aliases, depth + 1)
             }
+            Operand::CharString(_) => {Err(AssembleError::GenericError("CharStrings não podem ser operando de instrução".to_string()))}
         }
     }
 
@@ -351,7 +357,7 @@ impl Assembler {
         let resolved = self.resolve_operand_fully(operand, aliases, labels, 0)?;
         match resolved {
             Operand::Register(r) | Operand::RegisterIndirect(r) => {
-                if r > 15 || r < 1 {
+                if r > 15 {
                     // Assuming 16 registers R0-R15
                     return Err(AssembleError::GenericError(format!(
                         "Invalid register identifier: R{}",

@@ -1,0 +1,25 @@
+{
+  "name": "cupanasm",
+  "displayName": "CupanAsm Language Support",
+  "description": "Syntax Highlight for CupanAsm (.casm) files",
+  "version": "0.0.1",
+  "engines": {
+    "vscode": "^1.100.0"
+  },
+  "categories": [
+    "Programming Languages"
+  ],
+  "contributes": {
+    "languages": [{
+      "id": "cupanasm",
+      "aliases": ["CupanAsm", "cupanasm"],
+      "extensions": [".casm"],
+      "configuration": "./language-configuration.json"
+    }],
+    "grammars": [{
+      "language": "cupanasm",
+      "scopeName": "source.casm",
+      "path": "./syntaxes/cupanasm.tmLanguage.json"
+    }]
+  }
+}

@@ -124,25 +124,33 @@ where:
 
 | Arg       | Format               |
 |-----------|----------------------|
-| LITERAL   | $(decimal) or #(hex) |
-| REGISTER  | R(id)                |
-| REGISTER* | R(id)*               |
+| LITERAL   | $decimal or #hex |
+| REGISTER  | Rid                |
+| REGISTER* | Rid*               |
 
 ### Language
 
 ```casm
 ; coment
+
+; Instructions and arguments are separated by space
+mov r0 r1
+add r1 $42
+
 ; alias is like a variable, you can use !(alias) to refer to register or literals. Can be exported
-!(alias) Reg or Literal
+!alias Reg or Literal
 
 ; Label definition to set a point where the program counter comes when used in a call instruction.
 ; The assembler resolves the address direct to cupana machine code
-(label):
+label:
 
 ; Directives is used to tell the assembler to perform diferent actions on the cupana machine code
 ; .org tells the compiler where to put the code above with a rom memory addr
-.org #(addr)
-; .word define a 2-bytes value on current location
-.word
+.org #addr
+; .word define a label, u16 or a sequence of u16 null terminated value on current location
+.word label
+.word $decimal
+.word #hex
+.word "Hello World!"
 
 ```
