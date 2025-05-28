@@ -1,4 +1,5 @@
 pub mod console;
+pub mod serial;
 
 // src/devices.rs
 use crate::error::MemoryError; // Certifique-se que MemoryError é público e acessível

@@ -49,4 +49,4 @@ irq_handler:
 
     PLR R2              ; Restore registers
     PLR R1
-    RTI                 ; Return from interrupt
+    RSI                 ; Return from interrupt

@@ -107,28 +107,26 @@ impl Assembler {
                 Statement::Instruction(instruction) => {
                     self.generate_instruction(instruction, &program.aliases, &program.labels)?;
                 }
-                Statement::Directive(name, value) => {
-                    match name.to_lowercase().as_str() {
-                        "org" => match value {
-                            Operand::Literal(lit) => {
-                                self.current_address = *lit;
-                            }
-                            _ => {}
-                        },
-                        "word" => match value {
-                            Operand::Literal(lit) => {
-                                self.emit_u16(*lit);
-                            }
-                            Operand::LabelRef(label) => {
-                                if let Some(addr) = program.labels.get(label) {
-                                    self.emit_u16(*addr);
-                                }
-                            }
-                            _ => {}
-                        },
+                Statement::Directive(name, value) => match name.to_lowercase().as_str() {
+                    "org" => match value {
+                        Operand::Literal(lit) => {
+                            self.current_address = *lit;
+                        }
                         _ => {}
-                    }
-                }
+                    },
+                    "word" => match value {
+                        Operand::Literal(lit) => {
+                            self.emit_u16(*lit);
+                        }
+                        Operand::LabelRef(label) => {
+                            if let Some(addr) = program.labels.get(label) {
+                                self.emit_u16(*addr);
+                            }
+                        }
+                        _ => {}
+                    },
+                    _ => {}
+                },
                 _ => {}
             }
         }
@@ -150,7 +148,7 @@ impl Assembler {
         }
 
         match operand {
-            Operand::Register(_) | Operand::RegisterIndirect(_) | Operand::Acc => {
+            Operand::Register(_) | Operand::RegisterIndirect(_) => {
                 Ok(ResolvedOperandType::RegisterLike)
             }
             Operand::Literal(_) | Operand::LabelRef(_) => Ok(ResolvedOperandType::LiteralLike),
@@ -172,127 +170,132 @@ impl Assembler {
         aliases: &IndexMap<String, Operand>,
     ) -> Result<u16, AssembleError> {
         match instruction {
-            Instruction::Nop | Instruction::Hlt | Instruction::Ret | Instruction::Rti | Instruction::Cli | Instruction::Sei => Ok(1),
+            Instruction::Nop
+            | Instruction::Hlt
+            | Instruction::Rsb
+            | Instruction::Rsi
+            | Instruction::Cli
+            | Instruction::Sei => Ok(1),
             Instruction::Inc(op) | Instruction::Dec(op) | Instruction::Not(op) => {
-                                match self.resolve_operand_for_size(op, aliases, 0)? {
-                                    ResolvedOperandType::RegisterLike => Ok(1 + 1), // Opcode + Reg
-                                    _ => Err(AssembleError::GenericError(format!(
-                                        "Invalid operand for INC/DEC/NOT: {:?}. Must be register-like.",
-                                        op
-                                    ))),
-                                }
-                            }
+                match self.resolve_operand_for_size(op, aliases, 0)? {
+                    ResolvedOperandType::RegisterLike => Ok(1 + 1), // Opcode + Reg
+                    _ => Err(AssembleError::GenericError(format!(
+                        "Invalid operand for INC/DEC/NOT: {:?}. Must be register-like.",
+                        op
+                    ))),
+                }
+            }
             Instruction::Mov(dest, src) => {
-                                let resolved_dest_type = self.resolve_operand_for_size(dest, aliases, 0)?;
-                                let resolved_src_type = self.resolve_operand_for_size(src, aliases, 0)?;
+                let resolved_dest_type = self.resolve_operand_for_size(dest, aliases, 0)?;
+                let resolved_src_type = self.resolve_operand_for_size(src, aliases, 0)?;
 
-                                match (resolved_dest_type, resolved_src_type) {
-                                    (ResolvedOperandType::RegisterLike, ResolvedOperandType::RegisterLike) => {
-                                        Ok(1 + 1 + 1)
-                                    } // MOV Reg, Reg (0x10)
-                                    (ResolvedOperandType::RegisterLike, ResolvedOperandType::LiteralLike) => {
-                                        Ok(1 + 1 + 2)
-                                    } // MOV Reg, Lit (0x11) / MOV Reg, Mem (0x12) - casm uses 0x11
-                                    (ResolvedOperandType::LiteralLike, ResolvedOperandType::RegisterLike) => {
-                                        Ok(1 + 2 + 1)
-                                    } // MOV Mem, Reg (0x14)
-                                    (ResolvedOperandType::LiteralLike, ResolvedOperandType::LiteralLike) => {
-                                        Ok(1 + 2 + 2)
-                                    }
-                                }
-                            }
-            Instruction::Add(op1, op2)
-                            | Instruction::Mul(op1, op2)
-                            | Instruction::Cmp(op1, op2) => {
-                                let type1 = self.resolve_operand_for_size(op1, aliases, 0)?;
-                                let type2 = self.resolve_operand_for_size(op2, aliases, 0)?;
-                                match (type1, type2) {
-                                    (ResolvedOperandType::RegisterLike, ResolvedOperandType::RegisterLike) => {
-                                        Ok(1 + 1 + 1)
-                                    }
-                                    (ResolvedOperandType::RegisterLike, ResolvedOperandType::LiteralLike) => {
-                                        Ok(1 + 1 + 2)
-                                    }
-                                    _ => Err(AssembleError::GenericError(format!(
-                                        "Invalid operands for ADD/MUL/CMP: {:?}, {:?}",
-                                        op1, op2
-                                    ))),
-                                }
-                            }
-            Instruction::Sub(op1, op2)
-                            | Instruction::Div(op1, op2)
-                            | Instruction::Mod(op1, op2) => {
-                                let type1 = self.resolve_operand_for_size(op1, aliases, 0)?;
-                                let type2 = self.resolve_operand_for_size(op2, aliases, 0)?;
-                                match (type1, type2) {
-                                    (ResolvedOperandType::RegisterLike, ResolvedOperandType::RegisterLike) => {
-                                        Ok(1 + 1 + 1)
-                                    }
-                                    (ResolvedOperandType::RegisterLike, ResolvedOperandType::LiteralLike) => {
-                                        Ok(1 + 1 + 2)
-                                    }
-                                    (ResolvedOperandType::LiteralLike, ResolvedOperandType::RegisterLike) => {
-                                        Ok(1 + 2 + 1)
-                                    }
-                                    _ => Err(AssembleError::GenericError(format!(
-                                        "Invalid operands for SUB/DIV/MOD: {:?}, {:?}",
-                                        op1, op2
-                                    ))),
-                                }
-                            }
-            Instruction::And(op1, op2) | Instruction::Or(op1, op2) | Instruction::Xor(op1, op2) => {
-                                let type1 = self.resolve_operand_for_size(op1, aliases, 0)?;
-                                let type2 = self.resolve_operand_for_size(op2, aliases, 0)?;
-                                match (type1, type2) {
-                                    (ResolvedOperandType::RegisterLike, ResolvedOperandType::RegisterLike) => {
-                                        Ok(1 + 1 + 1)
-                                    }
-                                    _ => Err(AssembleError::GenericError(format!(
-                                        "AND/OR/XOR operands must be register-like: {:?}, {:?}",
-                                        op1, op2
-                                    ))),
-                                }
-                            }
-            Instruction::Jmp(op)
-                            | Instruction::Jz(op)
-                            | Instruction::Jnz(op)
-                            | Instruction::Jn(op)
-                            | Instruction::Jnn(op)
-                            | Instruction::Jc(op)
-                            | Instruction::Jnc(op) => {
-                                match self.resolve_operand_for_size(op, aliases, 0)? {
-                                    ResolvedOperandType::LiteralLike => Ok(1 + 2), // Opcode + Addr
-                                    ResolvedOperandType::RegisterLike => Ok(1 + 1), // Opcode + Reg
-                                }
-                            }
-            Instruction::Call(op) => {
-                                // CALL Lit (0x60)
-                                match self.resolve_operand_for_size(op, aliases, 0)? {
-                                    ResolvedOperandType::LiteralLike => Ok(1 + 2), // Opcode + Addr
-                                    _ => Err(AssembleError::GenericError(format!(
-                                        "CALL operand must be literal-like: {:?}",
-                                        op
-                                    ))),
-                                }
-                            }
-            Instruction::Phr(operand) => {
-                        match self.resolve_operand_for_size(operand, aliases, 0)? {
-                            ResolvedOperandType::RegisterLike => Ok(1 + 1), // Opcode + Reg
-                            _ => Err(AssembleError::GenericError(format!(
-                                "PHR operand must be register-like: {:?}",
-                                operand
-                            ))),
-                        }
+                match (resolved_dest_type, resolved_src_type) {
+                    (ResolvedOperandType::RegisterLike, ResolvedOperandType::RegisterLike) => {
+                        Ok(1 + 1 + 1)
+                    } // MOV Reg, Reg (0x10)
+                    (ResolvedOperandType::RegisterLike, ResolvedOperandType::LiteralLike) => {
+                        Ok(1 + 1 + 2)
+                    } // MOV Reg, Lit (0x11) / MOV Reg, Mem (0x12) - casm uses 0x11
+                    (ResolvedOperandType::LiteralLike, ResolvedOperandType::RegisterLike) => {
+                        Ok(1 + 2 + 1)
+                    } // MOV Mem, Reg (0x14)
+                    (ResolvedOperandType::LiteralLike, ResolvedOperandType::LiteralLike) => {
+                        Ok(1 + 2 + 2)
                     }
+                }
+            }
+            Instruction::Add(op1, op2)
+            | Instruction::Mul(op1, op2)
+            | Instruction::Cmp(op1, op2) => {
+                let type1 = self.resolve_operand_for_size(op1, aliases, 0)?;
+                let type2 = self.resolve_operand_for_size(op2, aliases, 0)?;
+                match (type1, type2) {
+                    (ResolvedOperandType::RegisterLike, ResolvedOperandType::RegisterLike) => {
+                        Ok(1 + 1 + 1)
+                    }
+                    (ResolvedOperandType::RegisterLike, ResolvedOperandType::LiteralLike) => {
+                        Ok(1 + 1 + 2)
+                    }
+                    _ => Err(AssembleError::GenericError(format!(
+                        "Invalid operands for ADD/MUL/CMP: {:?}, {:?}",
+                        op1, op2
+                    ))),
+                }
+            }
+            Instruction::Sub(op1, op2)
+            | Instruction::Div(op1, op2)
+            | Instruction::Mod(op1, op2) => {
+                let type1 = self.resolve_operand_for_size(op1, aliases, 0)?;
+                let type2 = self.resolve_operand_for_size(op2, aliases, 0)?;
+                match (type1, type2) {
+                    (ResolvedOperandType::RegisterLike, ResolvedOperandType::RegisterLike) => {
+                        Ok(1 + 1 + 1)
+                    }
+                    (ResolvedOperandType::RegisterLike, ResolvedOperandType::LiteralLike) => {
+                        Ok(1 + 1 + 2)
+                    }
+                    (ResolvedOperandType::LiteralLike, ResolvedOperandType::RegisterLike) => {
+                        Ok(1 + 2 + 1)
+                    }
+                    _ => Err(AssembleError::GenericError(format!(
+                        "Invalid operands for SUB/DIV/MOD: {:?}, {:?}",
+                        op1, op2
+                    ))),
+                }
+            }
+            Instruction::And(op1, op2) | Instruction::Or(op1, op2) | Instruction::Xor(op1, op2) => {
+                let type1 = self.resolve_operand_for_size(op1, aliases, 0)?;
+                let type2 = self.resolve_operand_for_size(op2, aliases, 0)?;
+                match (type1, type2) {
+                    (ResolvedOperandType::RegisterLike, ResolvedOperandType::RegisterLike) => {
+                        Ok(1 + 1 + 1)
+                    }
+                    _ => Err(AssembleError::GenericError(format!(
+                        "AND/OR/XOR operands must be register-like: {:?}, {:?}",
+                        op1, op2
+                    ))),
+                }
+            }
+            Instruction::Jmp(op)
+            | Instruction::Jz(op)
+            | Instruction::Jnz(op)
+            | Instruction::Jn(op)
+            | Instruction::Jnn(op)
+            | Instruction::Jc(op)
+            | Instruction::Jnc(op) => {
+                match self.resolve_operand_for_size(op, aliases, 0)? {
+                    ResolvedOperandType::LiteralLike => Ok(1 + 2), // Opcode + Addr
+                    ResolvedOperandType::RegisterLike => Ok(1 + 1), // Opcode + Reg
+                }
+            }
+            Instruction::Jsb(op) => {
+                // Jsb Lit (0x60)
+                match self.resolve_operand_for_size(op, aliases, 0)? {
+                    ResolvedOperandType::LiteralLike => Ok(1 + 2), // Opcode + Addr
+                    _ => Err(AssembleError::GenericError(format!(
+                        "CALL operand must be literal-like: {:?}",
+                        op
+                    ))),
+                }
+            }
+            Instruction::Phr(operand) => {
+                match self.resolve_operand_for_size(operand, aliases, 0)? {
+                    ResolvedOperandType::RegisterLike => Ok(1 + 1), // Opcode + Reg
+                    _ => Err(AssembleError::GenericError(format!(
+                        "PHR operand must be register-like: {:?}",
+                        operand
+                    ))),
+                }
+            }
             Instruction::Plr(operand) => {
-                        match self.resolve_operand_for_size(operand, aliases, 0)? {
-                            ResolvedOperandType::RegisterLike => Ok(1 + 1), // Opcode + Reg
-                            _ => Err(AssembleError::GenericError(format!(
-                                "PLR operand must be register-like: {:?}",
-                                operand
-                            ))),
-                        }
-                    },
+                match self.resolve_operand_for_size(operand, aliases, 0)? {
+                    ResolvedOperandType::RegisterLike => Ok(1 + 1), // Opcode + Reg
+                    _ => Err(AssembleError::GenericError(format!(
+                        "PLR operand must be register-like: {:?}",
+                        operand
+                    ))),
+                }
+            }
         }
     }
 
@@ -358,10 +361,6 @@ impl Assembler {
                 self.emit_byte(r);
                 Ok(())
             }
-            Operand::Acc => {
-                self.emit_byte(0x00);
-                Ok(())
-            }
             _ => Err(AssembleError::GenericError(format!(
                 "Expected register operand, found {:?} (resolved from {:?})",
                 resolved, operand
@@ -398,46 +397,34 @@ impl Assembler {
             Instruction::Nop => self.emit_byte(0x00),
             Instruction::Hlt => self.emit_byte(0x01),
             Instruction::Mov(dest, src) => self.generate_mov(dest, src, aliases, labels)?,
-            Instruction::Add(op1, op2) => {
-                        self.generate_binary_arithmetic(0x20, 0x21, op1, op2, aliases, labels)?
-                    }
-            Instruction::Sub(op1, op2) => self.generate_sub(op1, op2, aliases, labels)?,
-            Instruction::Mul(op1, op2) => {
-                        self.generate_binary_arithmetic(0x25, 0x26, op1, op2, aliases, labels)?
-                    }
-            Instruction::Div(op1, op2) => self.generate_div(op1, op2, aliases, labels)?,
-            Instruction::Mod(op1, op2) => self.generate_mod(op1, op2, aliases, labels)?,
+            Instruction::Phr(operand) => {
+                self.emit_byte(0x17);
+                self.emit_operand_reg(operand, aliases, labels)?;
+            }
+            Instruction::Plr(operand) => {
+                self.emit_byte(0x18);
+                self.emit_operand_reg(operand, aliases, labels)?;
+            }
+            Instruction::Add(op1, op2) => self.generate_binary_arithmetic_logic(0x20, 0x21, op1, op2, aliases, labels)?,
+            Instruction::Sub(op1, op2) => self.generate_binary_arithmetic_logic(0x22, 0x23, op1, op2, aliases, labels)?,
+            Instruction::Mul(op1, op2) => self.generate_binary_arithmetic_logic(0x24, 0x25, op1, op2, aliases, labels)?,
+            Instruction::Div(op1, op2) => self.generate_binary_arithmetic_logic(0x26, 0x28, op1, op2, aliases, labels)?,
+            Instruction::Mod(op1, op2) => self.generate_binary_arithmetic_logic(0x28, 0x29, op1, op2, aliases, labels)?,
             Instruction::Inc(op) => {
-                        self.emit_byte(0x2D);
-                        self.emit_operand_reg(op, aliases, labels)?;
-                    }
+                self.emit_byte(0x2A);
+                self.emit_operand_reg(op, aliases, labels)?;
+            }
             Instruction::Dec(op) => {
-                        self.emit_byte(0x2E);
-                        self.emit_operand_reg(op, aliases, labels)?;
-                    }
-            Instruction::And(op1, op2) => {
-                        // Opcode 0x30 (Reg Reg)
-                        self.emit_byte(0x30);
-                        self.emit_operand_reg(op1, aliases, labels)?;
-                        self.emit_operand_reg(op2, aliases, labels)?;
-                    }
-            Instruction::Or(op1, op2) => {
-                        // Opcode 0x31 (Reg Reg)
-                        self.emit_byte(0x31);
-                        self.emit_operand_reg(op1, aliases, labels)?;
-                        self.emit_operand_reg(op2, aliases, labels)?;
-                    }
-            Instruction::Xor(op1, op2) => {
-                        // Opcode 0x32 (Reg Reg)
-                        self.emit_byte(0x32);
-                        self.emit_operand_reg(op1, aliases, labels)?;
-                        self.emit_operand_reg(op2, aliases, labels)?;
-                    }
+                self.emit_byte(0x2B);
+                self.emit_operand_reg(op, aliases, labels)?;
+            }
+            Instruction::And(op1, op2) => self.generate_binary_arithmetic_logic(0x30, 0x31, op1, op2, aliases, labels)?,
+            Instruction::Or(op1, op2) => self.generate_binary_arithmetic_logic(0x32, 0x33, op1, op2, aliases, labels)?,
+            Instruction::Xor(op1, op2) => self.generate_binary_arithmetic_logic(0x34, 0x35, op1, op2, aliases, labels)?,
             Instruction::Not(op) => {
-                        // Opcode 0x33 (Reg)
-                        self.emit_byte(0x33);
-                        self.emit_operand_reg(op, aliases, labels)?;
-                    }
+                self.emit_byte(0x36);
+                self.emit_operand_reg(op, aliases, labels)?;
+            }
             Instruction::Cmp(op1, op2) => self.generate_cmp(op1, op2, aliases, labels)?,
             Instruction::Jmp(op) => self.generate_jump(0x50, 0x51, op, aliases, labels)?,
             Instruction::Jz(op) => self.generate_jump(0x52, 0x53, op, aliases, labels)?,
@@ -446,23 +433,15 @@ impl Assembler {
             Instruction::Jnn(op) => self.generate_jump(0x58, 0x59, op, aliases, labels)?,
             Instruction::Jc(op) => self.generate_jump(0x5A, 0x5B, op, aliases, labels)?,
             Instruction::Jnc(op) => self.generate_jump(0x5C, 0x5D, op, aliases, labels)?,
-            Instruction::Call(op) => {
-                        // Opcode 0x60 (Lit)
-                        self.emit_byte(0x60);
-                        self.emit_operand_literal(op, aliases, labels)?;
-                    }
-            Instruction::Ret => self.emit_byte(0x61),
-            Instruction::Rti => self.emit_byte(0x62),
-            Instruction::Cli => self.emit_byte(0x70),
-            Instruction::Sei => self.emit_byte(0x70),
-            Instruction::Phr(operand) => {
-                self.emit_byte(0x18);
-                self.emit_operand_reg(operand, aliases, labels)?;
-            },
-            Instruction::Plr(operand) => {
-                self.emit_byte(0x19);
-                self.emit_operand_reg(operand, aliases, labels)?;
-            },
+            Instruction::Jsb(op) => {
+                // Opcode 0x60 (Lit)
+                self.emit_byte(0x5E);
+                self.emit_operand_literal(op, aliases, labels)?;
+            }
+            Instruction::Rsb => self.emit_byte(0x5F),
+            Instruction::Cli => self.emit_byte(0x60),
+            Instruction::Sei => self.emit_byte(0x61),
+            Instruction::Rsi => self.emit_byte(0x62),
         }
         Ok(())
     }
@@ -478,45 +457,45 @@ impl Assembler {
         let resolved_src = self.resolve_operand_fully(src, aliases, labels, 0)?;
 
         match (&resolved_dest, &resolved_src) {
-            (Operand::Register(_) | Operand::Acc, Operand::Register(_) | Operand::Acc) => {
+            (Operand::Register(_), Operand::Register(_)) => {
                 // MOV Reg, Reg
                 self.emit_byte(0x10);
                 self.emit_operand_reg(&resolved_dest, aliases, labels)?;
                 self.emit_operand_reg(&resolved_src, aliases, labels)?;
             }
-            (Operand::Register(_) | Operand::Acc, Operand::Literal(_)) => {
+            (Operand::Register(_), Operand::Literal(_)) => {
                 // MOV Reg, Lit (covers resolved LabelRef and Alias to Literal)
                 self.emit_byte(0x11); // This is MOV Reg, LiteralValue
                 self.emit_operand_reg(&resolved_dest, aliases, labels)?;
                 self.emit_operand_literal(&resolved_src, aliases, labels)?;
             }
-            (Operand::Register(_) | Operand::Acc, Operand::RegisterIndirect(_)) => {
+            (Operand::Register(_), Operand::RegisterIndirect(_)) => {
                 // MOV Reg, Reg*
-                self.emit_byte(0x13);
+                self.emit_byte(0x12);
                 self.emit_operand_reg(&resolved_dest, aliases, labels)?;
                 self.emit_operand_reg(&resolved_src, aliases, labels)?; // Emits the register number part of Reg*
             }
-            (Operand::Literal(_), Operand::Register(_) | Operand::Acc) => {
+            (Operand::Literal(_), Operand::Register(_)) => {
                 // MOV Mem, Reg (where Mem is a literal address)
-                self.emit_byte(0x14);
+                self.emit_byte(0x13);
                 self.emit_operand_literal(&resolved_dest, aliases, labels)?; // The memory address
                 self.emit_operand_reg(&resolved_src, aliases, labels)?; // The source register
             }
             (Operand::Literal(_), Operand::Literal(_)) => {
                 // MOV Mem, Lit
-                self.emit_byte(0x15);
+                self.emit_byte(0x14);
                 self.emit_operand_literal(&resolved_dest, aliases, labels)?;
                 self.emit_operand_literal(&resolved_src, aliases, labels)?;
             }
-            (Operand::RegisterIndirect(_), Operand::Register(_) | Operand::Acc) => {
+            (Operand::RegisterIndirect(_), Operand::Register(_)) => {
                 // MOV Reg*, Reg
-                self.emit_byte(0x16);
+                self.emit_byte(0x15);
                 self.emit_operand_reg(&resolved_dest, aliases, labels)?; // Emits the register number part of Reg*
                 self.emit_operand_reg(&resolved_src, aliases, labels)?;
             }
             (Operand::RegisterIndirect(_), Operand::Literal(_)) => {
                 // MOV Reg*, Lit
-                self.emit_byte(0x17);
+                self.emit_byte(0x16);
                 self.emit_operand_reg(&resolved_dest, aliases, labels)?;
                 self.emit_operand_literal(&resolved_src, aliases, labels)?;
             }
@@ -530,7 +509,7 @@ impl Assembler {
         Ok(())
     }
 
-    fn generate_binary_arithmetic(
+    fn generate_binary_arithmetic_logic(
         &mut self,
         reg_reg_opcode: u8,
         reg_lit_opcode: u8,
@@ -556,114 +535,6 @@ impl Assembler {
             _ => {
                 return Err(AssembleError::GenericError(format!(
                     "Invalid operand combination for binary arithmetic (e.g., ADD, MUL): {:?}, {:?} (Original: Op1={:?}, Op2={:?})",
-                    resolved_op1, resolved_op2, op1, op2
-                )));
-            }
-        }
-        Ok(())
-    }
-
-    fn generate_sub(
-        &mut self,
-        op1: &Operand,
-        op2: &Operand,
-        aliases: &IndexMap<String, Operand>,
-        labels: &IndexMap<String, u16>,
-    ) -> Result<(), AssembleError> {
-        let resolved_op1 = self.resolve_operand_fully(op1, aliases, labels, 0)?;
-        let resolved_op2 = self.resolve_operand_fully(op2, aliases, labels, 0)?;
-
-        match (&resolved_op1, &resolved_op2) {
-            (Operand::Register(r1), Operand::Register(r2)) => {
-                self.emit_byte(0x22); // SUB Reg Reg
-                self.emit_byte(*r1);
-                self.emit_byte(*r2);
-            }
-            (Operand::Register(r1), Operand::Literal(l2)) => {
-                self.emit_byte(0x23); // SUB Reg Lit
-                self.emit_byte(*r1);
-                self.emit_u16(*l2);
-            }
-            (Operand::Literal(l1), Operand::Register(r2)) => {
-                self.emit_byte(0x24); // SUB Lit Reg
-                self.emit_u16(*l1);
-                self.emit_byte(*r2);
-            }
-            _ => {
-                return Err(AssembleError::GenericError(format!(
-                    "Invalid operand combination for SUB: {:?}, {:?} (Original: Op1={:?}, Op2={:?})",
-                    resolved_op1, resolved_op2, op1, op2
-                )));
-            }
-        }
-        Ok(())
-    }
-
-    fn generate_div(
-        &mut self,
-        op1: &Operand,
-        op2: &Operand,
-        aliases: &IndexMap<String, Operand>,
-        labels: &IndexMap<String, u16>,
-    ) -> Result<(), AssembleError> {
-        let resolved_op1 = self.resolve_operand_fully(op1, aliases, labels, 0)?;
-        let resolved_op2 = self.resolve_operand_fully(op2, aliases, labels, 0)?;
-
-        match (&resolved_op1, &resolved_op2) {
-            (Operand::Register(r1), Operand::Register(r2)) => {
-                self.emit_byte(0x27); // DIV Reg Reg
-                self.emit_byte(*r1);
-                self.emit_byte(*r2);
-            }
-            (Operand::Register(r1), Operand::Literal(l2)) => {
-                self.emit_byte(0x28); // DIV Reg Lit
-                self.emit_byte(*r1);
-                self.emit_u16(*l2);
-            }
-            (Operand::Literal(l1), Operand::Register(r2)) => {
-                self.emit_byte(0x29); // DIV Lit Reg
-                self.emit_u16(*l1);
-                self.emit_byte(*r2);
-            }
-            _ => {
-                return Err(AssembleError::GenericError(format!(
-                    "Invalid operand combination for DIV: {:?}, {:?} (Original: Op1={:?}, Op2={:?})",
-                    resolved_op1, resolved_op2, op1, op2
-                )));
-            }
-        }
-        Ok(())
-    }
-
-    fn generate_mod(
-        &mut self,
-        op1: &Operand,
-        op2: &Operand,
-        aliases: &IndexMap<String, Operand>,
-        labels: &IndexMap<String, u16>,
-    ) -> Result<(), AssembleError> {
-        let resolved_op1 = self.resolve_operand_fully(op1, aliases, labels, 0)?;
-        let resolved_op2 = self.resolve_operand_fully(op2, aliases, labels, 0)?;
-
-        match (&resolved_op1, &resolved_op2) {
-            (Operand::Register(r1), Operand::Register(r2)) => {
-                self.emit_byte(0x2A); // MOD Reg Reg
-                self.emit_byte(*r1);
-                self.emit_byte(*r2);
-            }
-            (Operand::Register(r1), Operand::Literal(l2)) => {
-                self.emit_byte(0x2B); // MOD Reg Lit
-                self.emit_byte(*r1);
-                self.emit_u16(*l2);
-            }
-            (Operand::Literal(l1), Operand::Register(r2)) => {
-                self.emit_byte(0x2C); // MOD Lit Reg
-                self.emit_u16(*l1);
-                self.emit_byte(*r2);
-            }
-            _ => {
-                return Err(AssembleError::GenericError(format!(
-                    "Invalid operand combination for MOD: {:?}, {:?} (Original: Op1={:?}, Op2={:?})",
                     resolved_op1, resolved_op2, op1, op2
                 )));
             }

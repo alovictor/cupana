@@ -157,9 +157,9 @@ impl CupanaMachine {
             }
             // MOV reg reg (0x10)
             0x10 => {
-                let dest = self.get_register_index(self.pc + 1, mem_bus)?;
-                let source = self.get_register_index(self.pc + 2, mem_bus)?;
-                self.registers[dest] = self.registers[source];
+                let dest_idx = self.get_register_index(self.pc + 1, mem_bus)?;
+                let source_idx = self.get_register_index(self.pc + 2, mem_bus)?;
+                self.registers[dest_idx] = self.registers[source_idx];
                 self.pc += 3;
             }
             // MOV reg lit (0x11)
@@ -169,229 +169,194 @@ impl CupanaMachine {
                 self.registers[dest_idx] = source;
                 self.pc += 4;
             }
-            // MOV reg mem (0x12)
+            // MOV reg reg* (0x12)
             0x12 => {
-                let dest_idx = self.get_register_index(self.pc + 1, mem_bus)?;
-                let source = mem_bus.read_u16(self.pc + 2)?;
-                self.registers[dest_idx] = mem_bus.read_u16(source)?;
-                self.pc += 4;
-            }
-            // MOV reg reg* (0x13)
-            0x13 => {
                 let dest_idx = self.get_register_index(self.pc + 1, mem_bus)?;
                 let source_idx = self.get_register_index(self.pc + 2, mem_bus)?;
                 self.registers[dest_idx] = mem_bus.read_u16(self.registers[source_idx])?;
                 self.pc += 3;
             }
-            // MOV mem reg (0x14)
-            0x14 => {
+            // MOV mem reg (0x13)
+            0x13 => {
                 let dest = mem_bus.read_u16(self.pc + 1)?;
                 let source_idx = self.get_register_index(self.pc + 3, mem_bus)?;
                 mem_bus.write_u16(dest, self.registers[source_idx])?;
                 self.pc += 4;
             }
-            // MOV mem lit (0x15)
-            0x15 => {
+            // MOV mem lit (0x14)
+            0x14 => {
                 let dest = mem_bus.read_u16(self.pc + 1)?;
                 let source = mem_bus.read_u16(self.pc + 3)?;
                 mem_bus.write_u16(dest, source)?;
                 self.pc += 5;
             }
-            // MOV reg* reg (0x16)
-            0x16 => {
+            // MOV reg* reg (0x15)
+            0x15 => {
                 let dest_idx = self.get_register_index(self.pc + 1, mem_bus)?;
                 let source_idx = self.get_register_index(self.pc + 2, mem_bus)?;
                 mem_bus.write_u16(self.registers[dest_idx], self.registers[source_idx])?;
                 self.pc += 3;
             }
-            // MOV reg* lit (0x17)
-            0x17 => {
+            // MOV reg* lit (0x16)
+            0x16 => {
                 let dest_idx = self.get_register_index(self.pc + 1, mem_bus)?;
                 let source = mem_bus.read_u16(self.pc + 2)?;
                 mem_bus.write_u16(self.registers[dest_idx], source)?;
                 self.pc += 4;
             }
-            // PHR Reg (0x18)
-            0x18 => {
+            // PHR Reg (0x17)
+            0x17 => {
                 let src_idx = self.get_register_index(self.pc + 1, mem_bus)?;
                 self.push_u16(mem_bus, self.registers[src_idx])?;
                 self.pc += 2;
             }
-            // PLR Reg (0x19)
-            0x19 => {
+            // PLR Reg (0x18)
+            0x18 => {
                 let dest_idx = self.get_register_index(self.pc + 1, mem_bus)?;
                 self.registers[dest_idx] = self.pop_u16(mem_bus)?;
                 self.pc += 2;
             }
             // ADD reg reg (0x20)
             0x20 => {
-                let source1_idx = self.get_register_index(self.pc + 1, mem_bus)?;
+                let dest_idx = self.get_register_index(self.pc + 1, mem_bus)?;
                 let source2_idx = self.get_register_index(self.pc + 2, mem_bus)?;
 
-                let val1 = self.registers[source1_idx];
+                let val1 = self.registers[dest_idx];
                 let val2 = self.registers[source2_idx];
 
                 let (result, carry_occurred) = val1.overflowing_add(val2);
-                self.registers[0] = result;
+                self.registers[dest_idx] = result;
 
                 self.update_flags(result, Some(carry_occurred));
                 self.pc += 3;
             }
             // ADD reg lit (0x21)
             0x21 => {
-                let source1_idx = self.get_register_index(self.pc + 1, mem_bus)?;
-                let val1 = self.registers[source1_idx];
+                let dest_idx = self.get_register_index(self.pc + 1, mem_bus)?;
+                let val1 = self.registers[dest_idx];
                 let val2 = mem_bus.read_u16(self.pc + 2)?;
 
                 let (result, carry_occurred) = val1.overflowing_add(val2);
-                self.registers[0] = result;
+                self.registers[dest_idx] = result;
 
                 self.update_flags(result, Some(carry_occurred));
                 self.pc += 4;
             }
             // SUB reg reg (0x22)
             0x22 => {
-                let source1_idx = self.get_register_index(self.pc + 1, mem_bus)?;
+                let dest_idx = self.get_register_index(self.pc + 1, mem_bus)?;
                 let source2_idx = self.get_register_index(self.pc + 2, mem_bus)?;
 
-                let val1 = self.registers[source1_idx];
+                let val1 = self.registers[dest_idx];
                 let val2 = self.registers[source2_idx];
 
                 let (result, carry_occurred) = val1.overflowing_sub(val2);
-                self.registers[0] = result;
+                self.registers[dest_idx] = result;
 
                 self.update_flags(result, Some(carry_occurred));
                 self.pc += 3;
             }
             // SUB reg lit (0x23)
             0x23 => {
-                let source1_idx = self.get_register_index(self.pc + 1, mem_bus)?;
-                let val1 = self.registers[source1_idx];
+                let dest_idx = self.get_register_index(self.pc + 1, mem_bus)?;
+                let val1 = self.registers[dest_idx];
                 let val2 = mem_bus.read_u16(self.pc + 2)?;
 
                 let (result, carry_occurred) = val1.overflowing_sub(val2);
-                self.registers[0] = result;
+                self.registers[dest_idx] = result;
 
                 self.update_flags(result, Some(carry_occurred));
                 self.pc += 4;
             }
-            // SUB lit reg (0x24)
+            // MUL reg reg (0x24)
             0x24 => {
-                let val1 = mem_bus.read_u16(self.pc + 1)?;
-                let source2_idx = self.get_register_index(self.pc + 3, mem_bus)?;
-                let val2 = self.registers[source2_idx];
-
-                let (result, carry_occurred) = val1.overflowing_sub(val2);
-                self.registers[0] = result;
-
-                self.update_flags(result, Some(carry_occurred));
-                self.pc += 4;
-            }
-            // MUL reg reg (0x25)
-            0x25 => {
-                let source1_idx = self.get_register_index(self.pc + 1, mem_bus)?;
+                let dest_idx = self.get_register_index(self.pc + 1, mem_bus)?;
                 let source2_idx = self.get_register_index(self.pc + 2, mem_bus)?;
 
-                let val1 = self.registers[source1_idx];
+                let val1 = self.registers[dest_idx];
                 let val2 = self.registers[source2_idx];
 
                 let (result, carry_occurred) = val1.overflowing_mul(val2);
-                self.registers[0] = result;
+                self.registers[dest_idx] = result;
                 self.update_flags(result, Some(carry_occurred));
 
                 self.pc += 3;
             }
-            // MUL reg lit (0x26)
-            0x26 => {
-                let source1_idx = self.get_register_index(self.pc + 1, mem_bus)?;
-                let val1 = self.registers[source1_idx];
+            // MUL reg lit (0x25)
+            0x25 => {
+                let dest_idx = self.get_register_index(self.pc + 1, mem_bus)?;
+                let val1 = self.registers[dest_idx];
                 let val2 = mem_bus.read_u16(self.pc + 2)?;
 
                 let (result, carry_occurred) = val1.overflowing_mul(val2);
-                self.registers[0] = result;
+                self.registers[dest_idx] = result;
 
                 self.update_flags(result, Some(carry_occurred));
                 self.pc += 4;
             }
-            // DIV reg reg (0x27)
+            // DIV reg reg (0x26)
+            0x26 => {
+                let dest_idx = self.get_register_index(self.pc + 1, mem_bus)?;
+                let source2_idx = self.get_register_index(self.pc + 2, mem_bus)?;
+
+                let val1 = self.registers[dest_idx];
+                let val2 = self.registers[source2_idx];
+
+                if val2 == 0 {
+                    return Err(VMError::DivideByZero); // Ou lidar via exceção se implementado
+                } else {
+                    let (result, carry_occurred) = val1.overflowing_div(val2);
+                    self.registers[dest_idx] = result;
+
+                    self.update_flags(result, Some(carry_occurred));
+                    self.pc += 3;
+                }
+            }
+            // DIV reg lit (0x27)
             0x27 => {
-                let source1_idx = self.get_register_index(self.pc + 1, mem_bus)?;
-                let source2_idx = self.get_register_index(self.pc + 2, mem_bus)?;
-
-                let val1 = self.registers[source1_idx];
-                let val2 = self.registers[source2_idx];
+                let dest_idx = self.get_register_index(self.pc + 1, mem_bus)?;
+                let val1 = self.registers[dest_idx];
+                let val2 = mem_bus.read_u16(self.pc + 2)?;
 
                 if val2 == 0 {
                     return Err(VMError::DivideByZero); // Ou lidar via exceção se implementado
                 } else {
                     let (result, carry_occurred) = val1.overflowing_div(val2);
-                    self.registers[0] = result;
+                    self.registers[dest_idx] = result;
 
                     self.update_flags(result, Some(carry_occurred));
-                    self.pc += 3;
+                    self.pc += 4;
                 }
             }
-            // DIV reg lit (0x28)
+            // MOD reg reg (0x28)
             0x28 => {
-                let source1_idx = self.get_register_index(self.pc + 1, mem_bus)?;
-                let val1 = self.registers[source1_idx];
-                let val2 = mem_bus.read_u16(self.pc + 2)?;
-
-                if val2 == 0 {
-                    return Err(VMError::DivideByZero); // Ou lidar via exceção se implementado
-                } else {
-                    let (result, carry_occurred) = val1.overflowing_div(val2);
-                    self.registers[0] = result;
-
-                    self.update_flags(result, Some(carry_occurred));
-                    self.pc += 4;
-                }
-            }
-            // DIV lit reg (0x29)
-            0x29 => {
-                let val1 = mem_bus.read_u16(self.pc + 1)?;
-                let source2_idx = self.get_register_index(self.pc + 3, mem_bus)?;
-                let val2 = self.registers[source2_idx];
-
-                if val2 == 0 {
-                    return Err(VMError::DivideByZero); // Ou lidar via exceção se implementado
-                } else {
-                    let (result, carry_occurred) = val1.overflowing_div(val2);
-                    self.registers[0] = result;
-
-                    self.update_flags(result, Some(carry_occurred));
-                    self.pc += 4;
-                }
-            }
-            // MOD reg reg (0x2A)
-            0x2A => {
-                let source1_idx = self.get_register_index(self.pc + 1, mem_bus)?;
+                let dest_idx = self.get_register_index(self.pc + 1, mem_bus)?;
                 let source2_idx = self.get_register_index(self.pc + 2, mem_bus)?;
 
-                let val1 = self.registers[source1_idx];
+                let val1 = self.registers[dest_idx];
                 let val2 = self.registers[source2_idx];
 
                 if val2 == 0 {
                     return Err(VMError::DivideByZero); // Ou lidar via exceção se implementado
                 } else {
                     let (result, carry_occurred) = val1.overflowing_rem(val2);
-                    self.registers[0] = result;
+                    self.registers[dest_idx] = result;
 
                     self.update_flags(result, Some(carry_occurred));
                     self.pc += 3;
                 }
             }
-            // MOD reg lit (0x2B)
-            0x2B => {
-                let source1_idx = self.get_register_index(self.pc + 1, mem_bus)?;
-                let val1 = self.registers[source1_idx];
+            // MOD reg lit (0x29)
+            0x29 => {
+                let dest_idx = self.get_register_index(self.pc + 1, mem_bus)?;
+                let val1 = self.registers[dest_idx];
                 let val2 = mem_bus.read_u16(self.pc + 2)?;
 
                 if val2 == 0 {
                     return Err(VMError::DivideByZero); // Ou lidar via exceção se implementado
                 } else {
                     let (result, carry_occurred) = val1.overflowing_rem(val2);
-                    self.registers[0] = result;
+                    self.registers[dest_idx] = result;
 
                     self.update_flag(FLAG_ZERO, result == 0);
                     self.update_flag(FLAG_NEGATIVE, (result & 0x8000) != 0);
@@ -399,24 +364,8 @@ impl CupanaMachine {
                     self.pc += 4;
                 }
             }
-            // MOD lit reg (0x2C)
-            0x2C => {
-                let val1 = mem_bus.read_u16(self.pc + 1)?;
-                let source2_idx = self.get_register_index(self.pc + 3, mem_bus)?;
-                let val2 = self.registers[source2_idx];
-
-                if val2 == 0 {
-                    return Err(VMError::DivideByZero); // Ou lidar via exceção se implementado
-                } else {
-                    let (result, carry_occurred) = val1.overflowing_rem(val2);
-                    self.registers[0] = result;
-
-                    self.update_flags(result, Some(carry_occurred));
-                    self.pc += 4;
-                }
-            }
-            // INC (0x2D)
-            0x2D => {
+            // INC (0x2A)
+            0x2A => {
                 let idx = self.get_register_index(self.pc + 1, mem_bus)?;
                 let val1 = self.registers[idx];
 
@@ -426,8 +375,8 @@ impl CupanaMachine {
                 self.update_flags(result, Some(carry_occurred));
                 self.pc += 2;
             }
-            // DEC (0x2E)
-            0x2E => {
+            // DEC (0x2B)
+            0x2B => {
                 let idx = self.get_register_index(self.pc + 1, mem_bus)?;
                 let val1 = self.registers[idx];
 
@@ -447,26 +396,24 @@ impl CupanaMachine {
                 let val2 = self.registers[source2_idx];
 
                 let result = val1 & val2;
-                self.registers[0] = result;
+                self.registers[source1_idx] = result;
 
                 self.update_flags(result, None);
                 self.pc += 3;
             }
-            // OR reg reg (0x31)
+            // AND reg lit (0x31)
             0x31 => {
-                let source1_idx = self.get_register_index(self.pc + 1, mem_bus)?;
-                let source2_idx = self.get_register_index(self.pc + 2, mem_bus)?;
+                let dest_idx = self.get_register_index(self.pc + 1, mem_bus)?;
+                let val1 = self.registers[dest_idx];
+                let val2 = mem_bus.read_u16(self.pc + 2)?;
 
-                let val1 = self.registers[source1_idx];
-                let val2 = self.registers[source2_idx];
-
-                let result = val1 | val2;
-                self.registers[0] = result;
+                let result = val1 & val2;
+                self.registers[dest_idx] = result;
 
                 self.update_flags(result, None);
                 self.pc += 3;
             }
-            // XOR reg reg (0x32)
+            // OR reg reg (0x32)
             0x32 => {
                 let source1_idx = self.get_register_index(self.pc + 1, mem_bus)?;
                 let source2_idx = self.get_register_index(self.pc + 2, mem_bus)?;
@@ -474,20 +421,58 @@ impl CupanaMachine {
                 let val1 = self.registers[source1_idx];
                 let val2 = self.registers[source2_idx];
 
-                let result = val1 ^ val2;
-                self.registers[0] = result;
+                let result = val1 | val2;
+                self.registers[source1_idx] = result;
 
                 self.update_flags(result, None);
                 self.pc += 3;
             }
-            // NOT reg (0x33)
+            // OR reg lit (0x33)
             0x33 => {
+                let dest_idx = self.get_register_index(self.pc + 1, mem_bus)?;
+                let val1 = self.registers[dest_idx];
+                let val2 = mem_bus.read_u16(self.pc + 2)?;
+
+                let result = val1 | val2;
+                self.registers[dest_idx] = result;
+
+                self.update_flags(result, None);
+                self.pc += 3;
+            }
+            // XOR reg reg (0x34)
+            0x34 => {
+                let source1_idx = self.get_register_index(self.pc + 1, mem_bus)?;
+                let source2_idx = self.get_register_index(self.pc + 2, mem_bus)?;
+
+                let val1 = self.registers[source1_idx];
+                let val2 = self.registers[source2_idx];
+
+                let result = val1 ^ val2;
+                self.registers[source1_idx] = result;
+
+                self.update_flags(result, None);
+                self.pc += 3;
+            }
+            // XOR reg lit (0x35)
+            0x35 => {
+                let dest_idx = self.get_register_index(self.pc + 1, mem_bus)?;
+                let val1 = self.registers[dest_idx];
+                let val2 = mem_bus.read_u16(self.pc + 2)?;
+
+                let result = val1 ^ val2;
+                self.registers[dest_idx] = result;
+
+                self.update_flags(result, None);
+                self.pc += 3;
+            }
+            // NOT reg (0x36)
+            0x36 => {
                 let source1_idx = self.get_register_index(self.pc + 1, mem_bus)?;
 
                 let val1 = self.registers[source1_idx];
 
                 let result = !val1;
-                self.registers[0] = result;
+                self.registers[source1_idx] = result;
 
                 self.update_flags(result, None);
                 self.pc += 2;
@@ -644,36 +629,38 @@ impl CupanaMachine {
                 }
             }
 
-            // CALL lit (0x60)
-            0x60 => {
+            // JSB lit (0x5E)
+            0x5E => {
                 let target_addr = mem_bus.read_u16(self.pc + 1)?;
                 let return_addr = self.pc + 3;
                 self.push_u16(mem_bus, return_addr)?;
                 self.pc = target_addr;
             }
-            // RET (0x61)
-            0x61 => {
+            // RSB (0x5F)
+            0x5F => {
                 self.pc = self.pop_u16(mem_bus)?;
             }
-            // RTI (0x62)
+            // CLI (0x60)
+            0x60 => { 
+                self.update_flag(FLAG_INTERRUPT_DISABLED, false);
+                self.pc += 1;
+            }
+            // SEI (0x61)
+            0x61 => { 
+                self.update_flag(FLAG_INTERRUPT_DISABLED, true);
+                self.pc += 1;
+            }
+            // RSI (0x62)
             0x62 => {
                 self.flags = self.pop_u8(mem_bus)?;
                 // Pop return address
                 self.pc = self.pop_u16(mem_bus)?;
             }
-            0x70 => { // CLI - Clear Interrupt Disable (Enable Interrupts)
-                self.update_flag(FLAG_INTERRUPT_DISABLED, false);
-                self.pc += 1;
-            }
-            0x71 => { // SEI - Set Interrupt Disable (Disable Interrupts)
-                self.update_flag(FLAG_INTERRUPT_DISABLED, true);
-                self.pc += 1;
-            }
             _ => {
                 return Err(VMError::InvalidOpcode(opcode));
             }
         }
-        println!("OP {:02X} Reg {:?}", opcode, self.registers);
+        // println!("OP {:02X} Reg {:?}", opcode, self.registers);
         Ok(())
     }
 }

@@ -9,7 +9,7 @@ use clap::Parser;
 use casm::Assembler;
 use cupana::Cupana;
 use error::CError;
-use devices::console::CupanaConsole; // Importe seu dispositivo
+use devices::serial::CupanaTcpSerial; // Importe seu dispositivo
 use memory::MMIO_BASE; // Importe o endereço base de MMIO
 
 #[derive(Parser, Debug)]
@@ -31,8 +31,10 @@ fn main() -> Result<(), CError> {
             let mut cupana_vm = Cupana::new();
             cupana_vm.load_program(program_bytes);
         
-            let terminal = CupanaConsole::new(MMIO_BASE); 
-            cupana_vm.register_device(Box::new(terminal));
+            // Crie e registre o CupanaTcpSerialPort
+            let listen_address = "127.0.0.1:12345"; // Ou outra porta/IP
+            let tcp_serial_device = CupanaTcpSerial::new(MMIO_BASE, listen_address);
+            cupana_vm.register_device(Box::new(tcp_serial_device)); //
         
             cupana_vm.run()?;
         }

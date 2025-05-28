@@ -14,9 +14,6 @@ pub enum Token {
     #[regex(r"#[0-9a-fA-F]+", |lex| u16::from_str_radix(&lex.slice()[1..], 16).ok())]
     HexLiteral(u16),
 
-    #[token("ACC", ignore(case))]
-    Acc,
-
     // Registradores
     #[regex(r"[Rr][1-9]+", |lex| {
         let num_str = &lex.slice()[1..];
@@ -88,16 +85,16 @@ pub enum Token {
     Jc,
     #[token("JNC", ignore(case))]
     Jnc,
-    #[token("CALL", ignore(case))]
-    Call,
-    #[token("RET", ignore(case))]
-    Ret,
-    #[token("RTI", ignore(case))]
-    Rti,
+    #[token("JSB", ignore(case))]
+    Jsb,
+    #[token("RSB", ignore(case))]
+    Rsb,
     #[token("CLI", ignore(case))]
     Cli,
     #[token("SEI", ignore(case))]
     Sei,
+    #[token("RSI", ignore(case))]
+    Rsi,
     
 
     // Diretivas

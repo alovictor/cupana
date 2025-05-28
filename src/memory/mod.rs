@@ -134,9 +134,6 @@ impl Memory for MemoryBus {
         } else if let Some(device_cell) = self.find_device(addr) {
             let mut device = device_cell.borrow_mut();
             let (dev_start, dev_end) = device.aabb();
-            if addr.saturating_add(1) > dev_end {
-                return Err(MemoryError::WriteNotPermitted(addr));
-            }
             device.write_u8(addr - dev_start, val as u8)
         } else {
             Err(MemoryError::WriteNotPermitted(addr))

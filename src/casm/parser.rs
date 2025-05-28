@@ -4,7 +4,6 @@ use indexmap::IndexMap;
 
 #[derive(Debug, Clone)]
 pub enum Operand {
-    Acc,
     Register(u8),
     RegisterIndirect(u8),
     Literal(u16),
@@ -38,11 +37,11 @@ pub enum Instruction {
     Jnn(Operand),
     Jc(Operand),
     Jnc(Operand),
-    Call(Operand),
-    Ret,
-    Rti,
+    Jsb(Operand),
+    Rsb,
     Cli,
-    Sei
+    Sei,
+    Rsi,
 }
 
 #[derive(Debug, Clone)]
@@ -248,18 +247,14 @@ impl<'a> Parser<'a> {
                 let op = self.parse_operand()?;
                 Ok(Instruction::Jnc(op))
             }
-            Some(Token::Call) => {
+            Some(Token::Jsb) => {
                 self.lexer.advance();
                 let op = self.parse_operand()?;
-                Ok(Instruction::Call(op))
+                Ok(Instruction::Jsb(op))
             }
-            Some(Token::Ret) => {
+            Some(Token::Rsb) => {
                 self.lexer.advance();
-                Ok(Instruction::Ret)
-            }
-            Some(Token::Rti) => {
-                self.lexer.advance();
-                Ok(Instruction::Rti)
+                Ok(Instruction::Rsb)
             }
             Some(Token::Cli) => {
                 self.lexer.advance();
@@ -268,6 +263,10 @@ impl<'a> Parser<'a> {
             Some(Token::Sei) => {
                 self.lexer.advance();
                 Ok(Instruction::Sei)
+            }
+            Some(Token::Rsi) => {
+                self.lexer.advance();
+                Ok(Instruction::Rsi)
             }
             other => Err(AssembleError::InvalidInstruction(
                 format!("Unexpected token: {:?} at line {}", other, self.lexer.line())
@@ -306,10 +305,6 @@ impl<'a> Parser<'a> {
                 let n = name.clone();
                 self.lexer.advance();
                 Ok(Operand::LabelRef(n))
-            }
-            Some(Token::Acc) => {
-                self.lexer.advance();
-                Ok(Operand::Acc)
             }
             other => Err(AssembleError::ParseError(
                 format!("Expected operand, found {:?} at line {}", other, self.lexer.line())
