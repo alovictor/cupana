@@ -1,10 +1,12 @@
 mod ram;
 mod rom;
+mod stack;
 
 use crate::devices::Device;
 use crate::error::MemoryError;
 use ram::Ram;
 use rom::Rom;
+use stack::Stack;
 use std::cell::RefCell;
 use std::fmt;
 
@@ -26,6 +28,7 @@ pub const MMIO_END: u16 = 0xFFFF;
 pub struct MemoryBus {
     rom: Rom,
     ram: Ram,
+    stack: Stack,
     devices: Vec<RefCell<Box<dyn Device>>>,
 }
 
@@ -34,6 +37,7 @@ impl MemoryBus {
         Self {
             rom: Rom::new(),
             ram: Ram::new(),
+            stack: Stack::new(),
             devices: Vec::new(),
         }
     }
@@ -66,6 +70,8 @@ impl Memory for MemoryBus {
             self.rom.read_u8(addr)
         } else if addr >= RAM_BASE && addr <= RAM_END {
             self.ram.read_u8(addr - RAM_BASE) // Ajusta para o offset da RAM
+        } else if addr >= STACK_BASE && addr <= STACK_END {
+             self.stack.read_u8(addr - STACK_BASE) // Ajusta para o offset da Stack
         } else if let Some(device_cell) = self.find_device(addr) {
             let mut device = device_cell.borrow_mut();
             let (dev_start, _) = device.aabb();
@@ -82,6 +88,8 @@ impl Memory for MemoryBus {
             self.rom.read_u16(addr)
         } else if addr >= RAM_BASE && (addr.saturating_add(1)) <= RAM_END {
             self.ram.read_u16(addr - RAM_BASE)
+        } else if addr >= STACK_BASE && addr <= STACK_END {
+             self.stack.read_u16(addr - STACK_BASE) // Ajusta para o offset da Stack
         } else if let Some(device_cell) = self.find_device(addr) {
             let mut device = device_cell.borrow_mut();
             let (dev_start, dev_end) = device.aabb();
@@ -101,6 +109,8 @@ impl Memory for MemoryBus {
             Err(MemoryError::WriteNotPermitted(addr)) // Não se pode escrever na ROM
         } else if addr >= RAM_BASE && addr <= RAM_END {
             self.ram.write_u8(addr - RAM_BASE, val)
+        } else if addr >= STACK_BASE && addr <= STACK_END {
+             self.stack.write_u8(addr - STACK_BASE, val) // Ajusta para o offset da Stack
         } else if let Some(device_cell) = self.find_device(addr) {
             let mut device = device_cell.borrow_mut();
             let (dev_start, _) = device.aabb();
@@ -116,6 +126,8 @@ impl Memory for MemoryBus {
             Err(MemoryError::WriteNotPermitted(addr))
         } else if addr >= RAM_BASE && (addr.saturating_add(1)) <= RAM_END {
             self.ram.write_u16(addr - RAM_BASE, val)
+        } else if addr >= STACK_BASE && addr <= STACK_END {
+             self.stack.write_u16(addr - STACK_BASE, val) // Ajusta para o offset da Stack
         } else if let Some(device_cell) = self.find_device(addr) {
             let mut device = device_cell.borrow_mut();
             let (dev_start, dev_end) = device.aabb();
@@ -124,7 +136,6 @@ impl Memory for MemoryBus {
             }
             device.write_u16(addr - dev_start, val)
         } else {
-            println!("Bus write u16: Address 0x{:04X} not mapped", addr);
             Err(MemoryError::WriteNotPermitted(addr))
         }
     }

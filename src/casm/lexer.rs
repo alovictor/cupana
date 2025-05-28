@@ -14,8 +14,11 @@ pub enum Token {
     #[regex(r"#[0-9a-fA-F]+", |lex| u16::from_str_radix(&lex.slice()[1..], 16).ok())]
     HexLiteral(u16),
 
+    #[token("ACC", ignore(case))]
+    Acc,
+
     // Registradores
-    #[regex(r"[Rr][0-9]+", |lex| {
+    #[regex(r"[Rr][1-9]+", |lex| {
         let num_str = &lex.slice()[1..];
         num_str.parse::<u8>().ok()
     })]
@@ -43,6 +46,10 @@ pub enum Token {
     Hlt,
     #[token("MOV", ignore(case))]
     Mov,
+    #[token("PHR", ignore(case))]
+    Phr,
+    #[token("PLR", ignore(case))]
+    Plr,
     #[token("ADD", ignore(case))]
     Add,
     #[token("SUB", ignore(case))]
@@ -85,6 +92,8 @@ pub enum Token {
     Call,
     #[token("RET", ignore(case))]
     Ret,
+    #[token("Rti", ignore(case))]
+    Rti,
 
     // Diretivas
     #[regex(r"\.[a-zA-Z]+", |lex| lex.slice()[1..].to_string())]

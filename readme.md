@@ -41,7 +41,7 @@ uma cpu de 16bits
 | 8  | MOV         | 0x16   | Stores value from Register Indirect            | MOV Reg* Reg | Data Transfer |
 | 9  | MOV         | 0x17   | Stores value from Literal Indirect             | MOV Reg* Lit | Data Transfer |
 | 9  | PHR         | 0x18   | Push register value to stack                   | PHR Reg      | Data Transfer |
-| 9  | PLA         | 0x19   | Pull value from stack                          | PLR Reg      | Data Transfer |
+| 9  | PLR         | 0x19   | Pull value from stack                          | PLR Reg      | Data Transfer |
 | 9  | ADD         | 0x20   | Add two Registers                              | ADD Reg Reg  | Arithmetic    |
 | 10 | ADD         | 0x21   | Add Register with Literal                      | ADD Reg Lit  | Arithmetic    |
 | 11 | SUB         | 0x22   | Subtract two Registers                         | SUB Reg Reg  | Arithmetic    |
@@ -77,8 +77,9 @@ uma cpu de 16bits
 | 41 | JC          | 0x5B   | Jump if Carry to Register pointer              | JC  Reg      | Control Flow  |
 | 42 | JNC         | 0x5C   | Jump if Not Carry to Literal memory address    | JNC Lit      | Control Flow  |
 | 43 | JNC         | 0x5D   | Jump if Not Carry to Register pointer          | JNC Reg      | Control Flow  |
-| 44 | CALL        | 0x60   | Subroutine Call                                | CALL Lit     | Control Flow  |
+| 44 | JSB         | 0x60   | Subroutine Call                                | CALL Lit     | Control Flow  |
 | 45 | RET         | 0x61   | Subroutine Return                              | RET          | Control Flow  |
+| 46 | RTI         | 0x62   | Interruption subroutine return                 | RTI          | Control Flow  |
 
 ## Cupanasm (.casm)
 
@@ -135,5 +136,7 @@ where:
 ; Directives is used to tell the assembler to perform diferent actions on the cupana machine code
 ; .org tells the compiler where to put the code above with a rom memory addr
 .org #(addr)
+; .word define a 2-bytes value on current location
+.word
 
 ```

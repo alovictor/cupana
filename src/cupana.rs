@@ -31,6 +31,7 @@ impl Cupana {
 
     pub fn run(&mut self) -> Result<(), CError> {
         self.running = true;
+        self.cpu.reset(&mut self.mem_bus)?;
         while self.running {
             self.cpu.step(&mut self.mem_bus).map_err(CError::VM)?;
             if self.cpu.has_halted() {

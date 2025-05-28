@@ -1,18 +1,34 @@
 !cr #F000
 
-;MOV R1 #F000  ; Endereço do registrador de dados do terminal
+reset:
+    MOV !cr $72  ; H
+    MOV !cr $101 ; E
+    MOV !cr $108 ; L
+    MOV !cr $108 ; L
+    MOV !cr $111 ; O
+    MOV !cr $32  ; 
+    MOV !cr $87  ; W
+    MOV !cr $111 ; O
+    MOV !cr $114 ; R
+    MOV !cr $108 ; L
+    MOV !cr $100 ; D
+    MOV !cr $33  ; !
+    MOV !cr $33  ; !
+    MOV acc $33
+    call print_char
+    HLT
 
-MOV !cr $72  ; H
-MOV !cr $101 ; E
-MOV !cr $108 ; L
-MOV !cr $108 ; L
-MOV !cr $111 ; O
-MOV !cr $32  ; 
-MOV !cr $87  ; W
-MOV !cr $111 ; O
-MOV !cr $114 ; R
-MOV !cr $108 ; L
-MOV !cr $100 ; D
-MOV !cr $33  ; !
+print_char:
+    mov #F000 acc
+    ret
 
-HLT
+nmi:
+irq:
+    MOV acc $33
+    call print_char
+    rti
+
+.org #7FFA
+.word nmi
+.word reset
+.word irq

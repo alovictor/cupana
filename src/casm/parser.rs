@@ -4,6 +4,7 @@ use indexmap::IndexMap;
 
 #[derive(Debug, Clone)]
 pub enum Operand {
+    Acc,
     Register(u8),
     RegisterIndirect(u8),
     Literal(u16),
@@ -16,6 +17,8 @@ pub enum Instruction {
     Nop,
     Hlt,
     Mov(Operand, Operand),
+    Phr(Operand),
+    Plr(Operand),
     Add(Operand, Operand),
     Sub(Operand, Operand),
     Mul(Operand, Operand),
@@ -37,6 +40,7 @@ pub enum Instruction {
     Jnc(Operand),
     Call(Operand),
     Ret,
+    Rti
 }
 
 #[derive(Debug, Clone)]
@@ -44,7 +48,7 @@ pub enum Statement {
     Instruction(Instruction),
     Label(String),
     AliasDeclaration(String, Operand),
-    Directive(String, Option<u16>),
+    Directive(String, Operand),
 }
 
 #[derive(Debug)]
@@ -95,25 +99,7 @@ impl<'a> Parser<'a> {
                 Some(Token::Directive(name)) => {
                     let directive_name = name.clone();
                     self.lexer.advance();
-                    
-                    let value = if let Some(token) = self.lexer.current() {
-                        match token {
-                            Token::DecimalLiteral(val) => {
-                                let v = *val;
-                                self.lexer.advance();
-                                Some(v)
-                            }
-                            Token::HexLiteral(val) => {
-                                let v = *val;
-                                self.lexer.advance();
-                                Some(v)
-                            }
-                            _ => None,
-                        }
-                    } else {
-                        None
-                    };
-                    
+                    let value = self.parse_operand()?;
                     statements.push(Statement::Directive(directive_name, value));
                 }
                 _ => {
@@ -145,6 +131,16 @@ impl<'a> Parser<'a> {
                 let dest = self.parse_operand()?;
                 let src = self.parse_operand()?;
                 Ok(Instruction::Mov(dest, src))
+            }
+            Some(Token::Phr) => {
+                self.lexer.advance();
+                let src = self.parse_operand()?;
+                Ok(Instruction::Phr(src))
+            }
+            Some(Token::Plr) => {
+                self.lexer.advance();
+                let src = self.parse_operand()?;
+                Ok(Instruction::Phr(src))
             }
             Some(Token::Add) => {
                 self.lexer.advance();
@@ -259,6 +255,10 @@ impl<'a> Parser<'a> {
                 self.lexer.advance();
                 Ok(Instruction::Ret)
             }
+            Some(Token::Rti) => {
+                self.lexer.advance();
+                Ok(Instruction::Rti)
+            }
             other => Err(AssembleError::InvalidInstruction(
                 format!("Unexpected token: {:?} at line {}", other, self.lexer.line())
             )),
@@ -296,6 +296,10 @@ impl<'a> Parser<'a> {
                 let n = name.clone();
                 self.lexer.advance();
                 Ok(Operand::LabelRef(n))
+            }
+            Some(Token::Acc) => {
+                self.lexer.advance();
+                Ok(Operand::Acc)
             }
             other => Err(AssembleError::ParseError(
                 format!("Expected operand, found {:?} at line {}", other, self.lexer.line())
