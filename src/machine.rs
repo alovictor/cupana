@@ -9,13 +9,13 @@ const NUM_REGISTERS: usize = 0x10; // 16 registradores
 const FLAG_ZERO: u8 = 0b0000_0001;
 const FLAG_CARRY: u8 = 0b0000_0010;
 const FLAG_NEGATIVE: u8 = 0b0000_0100;
-const FLAG_INTERRUPT_ENABLE: u8 = 0b0000_1000;
+const FLAG_INTERRUPT_DISABLED: u8 = 0b0000_1000;
 const FLAG_INTERRUPT_REQUEST_PENDING: u8 = 0b0001_0000;
 const FLAG_HALT: u8 = 0b1000_0000;
 
-const NON_MASKABLE_INTERRUPT_REQUEST: u16 = 0x7FFA;
+const NON_MASKABLE_INTERRUPT_REQUEST_VECTOR: u16 = 0x7FFA;
 const RESET_VECTOR: u16 = 0x7FFC;
-const INTERRUPT_REQUEST: u16 = 0x7FFE;
+const INTERRUPT_REQUEST_VECTOR: u16 = 0x7FFE;
 
 pub struct CupanaMachine {
     registers: [u16; NUM_REGISTERS],
@@ -29,7 +29,7 @@ impl CupanaMachine {
         Self {
             registers: [0; NUM_REGISTERS],
             pc: 0,
-            sp: STACK_END,
+            sp: 0,
             flags: 0,
         }
     }
@@ -38,7 +38,7 @@ impl CupanaMachine {
         self.registers = [0; NUM_REGISTERS];
         self.pc = mem_bus.read_u16(RESET_VECTOR)?;
         self.sp = STACK_END - 1;
-        self.flags = 0;
+        self.flags = FLAG_INTERRUPT_DISABLED;
         Ok(())
     }
 
@@ -73,25 +73,40 @@ impl CupanaMachine {
     }
 
     fn push_u8(&mut self, mem_bus: &mut MemoryBus, value: u8) -> Result<(), VMError> {
+        if self.sp < crate::memory::STACK_BASE {
+            return Err(VMError::StackOverflow);
+        }
         mem_bus.write_u8(self.sp, value)?;
         self.sp -= 1;
         Ok(())
     }
 
     fn pop_u8(&mut self, mem_bus: &mut MemoryBus) -> Result<u8, VMError> {
+        if self.sp >= STACK_END -1 { 
+             return Err(VMError::StackUnderflow);
+        }
         self.sp += 1;
         Ok(mem_bus.read_u8(self.sp)?)
     }
 
     fn push_u16(&mut self, mem_bus: &mut MemoryBus, value: u16) -> Result<(), VMError> {
-        mem_bus.write_u16(self.sp, value)?;
-        self.sp -= 2;
+        if self.sp < crate::memory::STACK_BASE + 1 { // Need 2 bytes
+            return Err(VMError::StackOverflow);
+        }
+        // Push High Byte
+        self.push_u8(mem_bus, (value >> 8) as u8)?;
+        // Push Low Byte
+        self.push_u8(mem_bus, (value & 0xFF) as u8)?;
         Ok(())
     }
 
     fn pop_u16(&mut self, mem_bus: &mut MemoryBus) -> Result<u16, VMError> {
-        self.sp += 2;
-        Ok(mem_bus.read_u16(self.sp)?)
+        if self.sp >= STACK_END - 2 { // Check before increment to prevent wrapping issues. Need 2 bytes.
+             return Err(VMError::StackUnderflow);
+        }
+        let lo = self.pop_u8(mem_bus)? as u16;
+        let hi = self.pop_u8(mem_bus)? as u16;
+        Ok((hi << 8) | lo)
     }
 
     fn get_register_index(&self, pc: u16, mem_bus: &mut MemoryBus) -> Result<usize, VMError> {
@@ -105,12 +120,28 @@ impl CupanaMachine {
 
     pub fn step(&mut self, mem_bus: &mut MemoryBus) -> Result<(), VMError> {
 
-        if self.is_flag_set(FLAG_INTERRUPT_REQUEST_PENDING) && self.is_flag_set(FLAG_INTERRUPT_ENABLE) {
+        if self.is_flag_set(FLAG_INTERRUPT_REQUEST_PENDING) && !self.is_flag_set(FLAG_INTERRUPT_DISABLED) {
+            let return_pc = self.pc;        // Save current PC for pushing
+            let return_flags = self.flags;   // Save current flags for pushing
+
+            // 1. Automatically disable further maskable interrupts in the CPU's current flags
+            self.update_flag(FLAG_INTERRUPT_DISABLED, true);
+
+            // 2. Clear the pending interrupt request
             self.update_flag(FLAG_INTERRUPT_REQUEST_PENDING, false);
-            self.push_u16(mem_bus, self.pc)?;
-            let isr = mem_bus.read_u16(INTERRUPT_REQUEST)?;
-            self.pc = mem_bus.read_u16(isr)?;
-            return Ok(())
+
+            // 3. Push the *original* (return) PC onto the stack
+            self.push_u16(mem_bus, return_pc)?;
+
+            // 4. Push the *original* (return) flags onto the stack
+            self.push_u8(mem_bus, return_flags)?;
+
+            // 5. Load PC with the ISR address from the interrupt vector table
+            // INTERRUPT_REQUEST_VECTOR (e.g., 0x7FFE) holds the ISR's actual starting address
+            let isr_address = mem_bus.read_u16(INTERRUPT_REQUEST_VECTOR)?;
+            self.pc = isr_address;
+
+            return Ok(()); // Skip fetching the normal next instruction
         }
 
         let opcode = mem_bus.read_u8(self.pc)?;
@@ -122,6 +153,7 @@ impl CupanaMachine {
             // HLT (0x01)
             0x01 => {
                 self.update_flag(FLAG_HALT, true);
+                self.pc += 1;
             }
             // MOV reg reg (0x10)
             0x10 => {
@@ -163,7 +195,7 @@ impl CupanaMachine {
                 let dest = mem_bus.read_u16(self.pc + 1)?;
                 let source = mem_bus.read_u16(self.pc + 3)?;
                 mem_bus.write_u16(dest, source)?;
-                self.pc += 4;
+                self.pc += 5;
             }
             // MOV reg* reg (0x16)
             0x16 => {
@@ -621,37 +653,49 @@ impl CupanaMachine {
             }
             // RET (0x61)
             0x61 => {
-                let return_addr = self.pop_u16(mem_bus)?;
-                self.pc = return_addr;
+                self.pc = self.pop_u16(mem_bus)?;
             }
             // RTI (0x62)
             0x62 => {
-                let return_addr = self.pop_u16(mem_bus)?;
-                self.pc = return_addr;
+                self.flags = self.pop_u8(mem_bus)?;
+                // Pop return address
+                self.pc = self.pop_u16(mem_bus)?;
             }
             0x70 => { // CLI - Clear Interrupt Disable (Enable Interrupts)
-                self.update_flag(FLAG_INTERRUPT_ENABLE, false);
+                self.update_flag(FLAG_INTERRUPT_DISABLED, false);
                 self.pc += 1;
             }
             0x71 => { // SEI - Set Interrupt Disable (Disable Interrupts)
-                self.update_flag(FLAG_INTERRUPT_ENABLE, true);
+                self.update_flag(FLAG_INTERRUPT_DISABLED, true);
                 self.pc += 1;
             }
             _ => {
                 return Err(VMError::InvalidOpcode(opcode));
             }
         }
-        // println!("OP {:02X} Reg {:?}", opcode, self.registers);
+        println!("OP {:02X} Reg {:?}", opcode, self.registers);
         Ok(())
     }
 }
 
 impl Display for CupanaMachine {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "CupanaMachine {{\n  registers: {:?},\n  pc: {},\n  flags: {:08b}\n}}",
-            self.registers, self.pc, self.flags
-        )
+        writeln!(f, "CupanaMachine {{")?;
+        writeln!(f, "  PC: 0x{:04X}, SP: 0x{:04X}", self.pc, self.sp)?;
+        writeln!(f, "  Flags: {:08b} (Z:{} N:{} C:{} ID:{})",
+            self.flags,
+            self.is_flag_set(FLAG_ZERO) as u8,
+            self.is_flag_set(FLAG_NEGATIVE) as u8,
+            self.is_flag_set(FLAG_CARRY) as u8,
+            self.is_flag_set(FLAG_INTERRUPT_DISABLED) as u8,
+        )?;
+        for i in 0..NUM_REGISTERS {
+            if i % 4 == 0 {
+                write!(f, "  ")?;
+            }
+            write!(f, "R{:02}: 0x{:04X}{}", i, self.registers[i], if (i + 1) % 4 == 0 {"\n"} else {" "})?;
+        }
+        if NUM_REGISTERS % 4 != 0 { writeln!(f)?; }
+        write!(f, "}}")
     }
 }

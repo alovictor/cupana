@@ -27,4 +27,6 @@ pub trait Device: Debug {
 
     /// Retorna o intervalo de endereços globais (início, fim) que este dispositivo ocupa.
     fn aabb(&self) -> (u16, u16); // (global_start_addr, global_end_addr)
+
+    fn check_interrupt(&mut self) -> bool;
 }

@@ -92,8 +92,13 @@ pub enum Token {
     Call,
     #[token("RET", ignore(case))]
     Ret,
-    #[token("Rti", ignore(case))]
+    #[token("RTI", ignore(case))]
     Rti,
+    #[token("CLI", ignore(case))]
+    Cli,
+    #[token("SEI", ignore(case))]
+    Sei,
+    
 
     // Diretivas
     #[regex(r"\.[a-zA-Z]+", |lex| lex.slice()[1..].to_string())]

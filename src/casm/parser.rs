@@ -40,7 +40,9 @@ pub enum Instruction {
     Jnc(Operand),
     Call(Operand),
     Ret,
-    Rti
+    Rti,
+    Cli,
+    Sei
 }
 
 #[derive(Debug, Clone)]
@@ -258,6 +260,14 @@ impl<'a> Parser<'a> {
             Some(Token::Rti) => {
                 self.lexer.advance();
                 Ok(Instruction::Rti)
+            }
+            Some(Token::Cli) => {
+                self.lexer.advance();
+                Ok(Instruction::Cli)
+            }
+            Some(Token::Sei) => {
+                self.lexer.advance();
+                Ok(Instruction::Sei)
             }
             other => Err(AssembleError::InvalidInstruction(
                 format!("Unexpected token: {:?} at line {}", other, self.lexer.line())

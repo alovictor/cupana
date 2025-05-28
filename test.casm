@@ -13,7 +13,6 @@ reset:
     MOV !cr $108 ; L
     MOV !cr $100 ; D
     MOV !cr $33  ; !
-    MOV !cr $33  ; !
     MOV acc $33
     call print_char
     HLT

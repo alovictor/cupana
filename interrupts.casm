@@ -1,0 +1,52 @@
+; Constants for console registers
+!CONS_DATA   #F000
+!CONS_STATUS #F001
+!CONS_CTRL   #F002
+
+; Constants for control bits
+!RX_INT_EN   $01 ; Enable RX interrupt
+; !TX_INT_EN   $02 ; Enable TX interrupt (if you implement TX int logic)
+
+; Constants for status bits
+!RX_RDY      $01 ; RX Ready bit in status register
+
+.org #7FFE  ; Interrupt Vector Table entry for IRQ
+.word irq_handler
+
+.org $0000  ; Program Entry Point
+
+main_program:
+    ; Initialize console: Enable RX interrupts
+    MOV R1 !RX_INT_EN
+    MOV !CONS_CTRL R1  ; Write to console control register
+
+    CLI                 ; Enable CPU's master interrupt flag
+
+    ; Main loop or halt, waiting for interrupts
+idle_loop:
+    JMP idle_loop       ; Simple busy wait, or HLT
+    ; HLT
+
+; --- Interrupt Service Routine (IRQ Handler) ---
+irq_handler:
+    PHR R1              ; Save registers used by ISR
+    PHR R2
+
+    ; Check console status to see if it was a console RX interrupt
+    MOV R1 !CONS_STATUS
+    ; We need a way to test a bit. Let's assume R1 now holds the status.
+    ; If we had "AND R1, R1, !RX_RDY", then JZ would work.
+    ; For now, we'll assume it's the console interrupt if it's the only one enabled.
+
+    ; Read the character from the console data register
+    MOV R2 !CONS_DATA  ; R2 now holds the received character
+
+    ; --- Process the character in R2 ---
+    ; Example: Store it in memory at #8000
+    MOV #8000 R2
+    ; Example: Echo it back to the console (if desired)
+    ; MOV !CONS_DATA R2
+
+    PLR R2              ; Restore registers
+    PLR R1
+    RTI                 ; Return from interrupt

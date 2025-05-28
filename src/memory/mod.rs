@@ -62,6 +62,10 @@ impl MemoryBus {
         }
         None
     }
+
+    pub fn iter_devices(&self) -> impl Iterator<Item = &RefCell<Box<dyn Device>>> {
+        self.devices.iter()
+    }
 }
 
 impl Memory for MemoryBus {
@@ -94,7 +98,6 @@ impl Memory for MemoryBus {
             let mut device = device_cell.borrow_mut();
             let (dev_start, dev_end) = device.aabb();
             if addr.saturating_add(1) > dev_end {
-                // Garante que a leitura de 16 bits não ultrapasse os limites do dispositivo
                 return Err(MemoryError::InvalidRamAddress(addr));
             }
             device.read_u16(addr - dev_start)
@@ -134,7 +137,7 @@ impl Memory for MemoryBus {
             if addr.saturating_add(1) > dev_end {
                 return Err(MemoryError::WriteNotPermitted(addr));
             }
-            device.write_u16(addr - dev_start, val)
+            device.write_u8(addr - dev_start, val as u8)
         } else {
             Err(MemoryError::WriteNotPermitted(addr))
         }

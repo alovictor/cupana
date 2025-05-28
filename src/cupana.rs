@@ -37,6 +37,12 @@ impl Cupana {
             if self.cpu.has_halted() {
                 self.running = false;
             }
+            for device_cell in self.mem_bus.iter_devices() {
+                let mut device = device_cell.borrow_mut(); // Get mutable access to the device
+                if device.check_interrupt() {
+                    self.cpu.request_interrupt();
+                }
+            }
         }
         Ok(())
     }
