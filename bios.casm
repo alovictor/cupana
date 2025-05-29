@@ -1,0 +1,172 @@
+; Cupana BIOS v0.1
+; Starts at ROM address 0x0000
+
+.org #0000
+
+; --- BIOS Entry Point ---
+start_bios:
+    ; SP is set by the machine's reset sequence.
+    ; Interrupts are initially disabled by the reset sequence.
+
+    ; Display welcome message
+    mov R0 welcome_message      ; R0 = address of the welcome_message string
+    jsb print_string            ; Call subroutine to print it
+
+    ; Fall through to the main command loop
+main_loop:
+    mov R0 prompt_message       ; R0 = address of the prompt string ("> ")
+    jsb print_string
+
+    jsb read_line               ; Reads a line into CMD_BUFFER_ADDR. R1 gets length.
+                                ; Characters are echoed as typed.
+    jsb process_command         ; Process the command in the buffer.
+
+    JMP main_loop               ; Loop back for the next command
+
+; --- Data Segment ---
+welcome_message:
+    .word "Cupana BIOS v0.1"
+    .word #0A0D                   ; Line Feed + Carriege Return (newline)
+    .word $00                   ; Null terminator for the string
+
+prompt_message:
+    .word "> "
+    .word $00                   ; Null terminator
+
+command_received_text:
+    .word "Command: "
+    .word $00                   ; Null terminator
+
+; --- Constants and Aliases ---
+!SERIAL_DATA_ADDR   #F000     ; Address of Serial Data Register
+!SERIAL_STATUS_ADDR #F001     ; Address of Serial Status Register
+!RX_READY_MASK      $1        ; Bit mask for Receiver Ready
+!TX_READY_MASK      $2        ; Bit mask for Transmitter Ready
+
+!CMD_BUFFER_ADDR    #8000     ; Start of RAM for command buffer
+!CMD_BUFFER_MAX_LEN $32       ; Max 32 characters for a command (adjust as needed)
+!ASCII_CR           #0D       ; ASCII Carriage Return
+!ASCII_LF           #0A       ; ASCII Line Feed
+
+; --- Subroutines ---
+
+; print_string: Prints a null-terminated string.
+; Input: R0 = address of the first character of the string.
+; Modifies: R1 (iterator), R2 (char), R3 (device addr), R4 (status).
+print_string:
+    MOV R1 R0                   ; R1 will be our current character pointer
+ps_loop:
+    MOV R2 R1*                  ; R2 = character to print (dereference R1: read from memory at address in R1)
+    CMP R2 $0                   ; Compare character with null
+    JZ ps_done                  ; If zero (null terminator), printing is done
+
+    jsb put_char                ; Call subroutine to send character in R2
+    INC R1                      ; Move pointer to the next character
+    JMP ps_loop                 ; Repeat
+ps_done:
+    RSB                         ; Return from subroutine
+
+; put_char: Sends a character to the serial output.
+; Input: R2 = character to send.
+; Modifies: R3 (device addr), R4 (status).
+put_char:
+pc_wait_tx_ready:
+    MOV R3 !SERIAL_STATUS_ADDR ; R3 = address of the serial status register
+    MOV R4 R3*                 ; R4 = current status value (read from serial status register)
+    AND R4 !TX_READY_MASK      ; Isolate the TX_READY bit
+    JZ pc_wait_tx_ready        ; If zero (not ready), loop and wait
+    
+    MOV R3 !SERIAL_DATA_ADDR   ; R3 = address of the serial data register
+    MOV R3* R2                 ; Send character (write R2 to serial data register)
+    RSB
+
+; get_char: Reads a character from serial input and echoes it back.
+; Output: R0 = character read.
+; Modifies: R2 (for echo), R3 (device addr), R4 (status).
+get_char:
+gc_wait_rx_ready:
+    MOV R3 !SERIAL_STATUS_ADDR ; R3 = address of the serial status register
+    MOV R4 R3*                 ; R4 = current status value
+    AND R4 !RX_READY_MASK      ; Isolate the RX_READY bit
+    JZ gc_wait_rx_ready         ; If zero (no character), loop and wait
+
+    MOV R3 !SERIAL_DATA_ADDR   ; R3 = address of the serial data register
+    MOV R0 R3* ; R0 = received character (read from serial data register)
+
+    ; Echo the character back
+    ;MOV R2 R0                  ; Move character to R2 for put_char
+    ;jsb put_char               ; Send it
+    RSB
+
+; read_line: Reads a line of text from serial input into CMD_BUFFER_ADDR.
+;            Characters are echoed. Line ends with CR or LF.
+;            The buffer is null-terminated.
+; Output: R1 = length of the string (excluding null terminator).
+; Modifies: R0 (char), R2 (temp), R3 (dev addr), R4 (status), R5 (buffer ptr), R6 (length)
+read_line:
+    MOV R5 !CMD_BUFFER_ADDR    ; R5 = pointer to current position in command buffer
+    MOV R6 $0                  ; R6 = length counter
+rl_loop:
+    jsb get_char               ; R0 = character read (already echoed)
+
+    ; Check for line termination (Carriage Return or Line Feed)
+    CMP R0 !ASCII_CR           ; Compare with CR
+    JZ rl_terminated
+    CMP R0 !ASCII_LF           ; Compare with LF
+    JZ rl_terminated
+    
+    ; TODO: Implement Backspace handling here if desired.
+
+    ; Check if buffer is full (leave space for null terminator)
+    MOV R2 !CMD_BUFFER_MAX_LEN
+    DEC R2                      ; Max index is max_len - 1
+    CMP R6 R2                   ; Compare current length with max allowed index
+    JNZ rl_store_char           ; If R6 != R2 (not full), store character
+    JMP rl_terminated           ; Buffer full, treat as terminated (don't store char)
+
+rl_store_char:
+    MOV R5* R0                 ; Store character R0 into memory at address in R5
+    INC R5                      ; Advance buffer pointer
+    INC R6                      ; Increment length count
+    JMP rl_loop                 ; Get next character
+
+rl_terminated:
+    ; If the terminator was CR, also echo an LF for a clean newline on most terminals
+    CMP R0 !ASCII_CR
+    JNZ rl_skip_lf_echo
+    MOV R2 !ASCII_LF           ; Character to send is LF
+    jsb put_char
+rl_skip_lf_echo:
+    MOV R0 $0                  ; R0 = null character
+    MOV R5* R0                 ; Store null terminator at the end of the string
+    
+    MOV R1 R6                  ; R1 = final length of the string
+    RSB
+
+; process_command: Basic command processor.
+; Input: Command string is at CMD_BUFFER_ADDR. Length is in R1 (from read_line).
+; Modifies: R0, (others, depending on called subroutines)
+process_command:
+    ; For this simple BIOS, just print "Command: " and then echo the command.
+    MOV R0 command_received_text
+    jsb print_string
+
+    MOV R0 !CMD_BUFFER_ADDR    ; R0 points to the command string in RAM
+    jsb print_string           ; Print the entered command
+
+    ; Add a final newline for neatness
+    MOV R2 !ASCII_LF
+    jsb put_char
+    RSB
+
+
+; --- Reset Vector ---
+; This tells the CPU where to start executing after a reset.
+; It MUST be located at address 0x7FFC in ROM.
+.org #7FFC
+reset_vector_entry:
+    .word start_bios            ; Store the address of 'start_bios' (which is 0x0000)
+
+; End of BIOS ROM image (assembler will pad until here if this .org is the last one,
+; or fill with zeros up to ROM_SIZE depending on the assembler's behavior for the output file).
+; For your current assembler, it seems to just output the bytes generated.

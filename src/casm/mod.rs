@@ -128,7 +128,6 @@ impl Assembler {
                             for c in str.chars() {
                                 self.emit_u16(c as u16);
                             }
-                            self.emit_u16(0); // Null-terminator
                         }
                         _ => {}
                     },
@@ -240,9 +239,6 @@ impl Assembler {
                     (ResolvedOperandType::RegisterLike, ResolvedOperandType::LiteralLike) => {
                         Ok(1 + 1 + 2)
                     }
-                    (ResolvedOperandType::LiteralLike, ResolvedOperandType::RegisterLike) => {
-                        Ok(1 + 2 + 1)
-                    }
                     _ => Err(AssembleError::GenericError(format!(
                         "Invalid operands for SUB/DIV/MOD: {:?}, {:?}",
                         op1, op2
@@ -256,8 +252,11 @@ impl Assembler {
                     (ResolvedOperandType::RegisterLike, ResolvedOperandType::RegisterLike) => {
                         Ok(1 + 1 + 1)
                     }
+                    (ResolvedOperandType::RegisterLike, ResolvedOperandType::LiteralLike) => {
+                        Ok(1 + 1 + 2)
+                    }
                     _ => Err(AssembleError::GenericError(format!(
-                        "AND/OR/XOR operands must be register-like: {:?}, {:?}",
+                        "AND/OR/XOR incorrect args: {:?}, {:?}",
                         op1, op2
                     ))),
                 }
@@ -279,7 +278,7 @@ impl Assembler {
                 match self.resolve_operand_for_size(op, aliases, 0)? {
                     ResolvedOperandType::LiteralLike => Ok(1 + 2), // Opcode + Addr
                     _ => Err(AssembleError::GenericError(format!(
-                        "CALL operand must be literal-like: {:?}",
+                        "jsb operand must be literal-like: {:?}",
                         op
                     ))),
                 }

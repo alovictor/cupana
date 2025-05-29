@@ -125,7 +125,7 @@ impl<'a> Lexer<'a> {
         let mut lexer = Self {
             logos_lexer: Token::lexer(input),
             current_token: None,
-            line: 1,
+            line: 0,
         };
         lexer.advance();
         lexer
@@ -144,7 +144,12 @@ impl<'a> Lexer<'a> {
         match token {
             Some(res) => {
                 match res {
-                    Ok(tk) => self.current_token = Some(tk),
+                    Ok(tk) => {
+                        if tk == Token::Newline {
+                            self.line += 1;
+                        }
+                        self.current_token = Some(tk)
+                    },
                     Err(e) => println!("Error: {:?}", e),
                 }
             },

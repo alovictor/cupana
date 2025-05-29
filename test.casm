@@ -1,32 +1,107 @@
-!cr #F000
+!serial_data #F000
+!serial_status #F001
+!RX_READY_MASK $1
+!TX_READY_MASK $2
 
-string: .word "Hello World!"
+!CMD_BUFFER_ADDR    #8000
+!CMD_BUFFER_MAX_LEN $32  
+!ASCII_CR           #0D  
+!ASCII_LF           #0A  
+
 
 reset:
-    MOV !cr $72  ; H
-    MOV !cr $101 ; E
-    MOV !cr $108 ; L
-    MOV !cr $108 ; L
-    MOV !cr $111 ; O
-    MOV !cr $32  ; 
-    MOV !cr $87  ; W
-    MOV !cr $111 ; O
-    MOV !cr $114 ; R
-    MOV !cr $108 ; L
-    MOV !cr $100 ; D
-    MOV !cr $33  ; !
-    MOV r0 $33
-    jsb print_char
+    jsb print_string
+    jsb read_line               ; Reads a line into CMD_BUFFER_ADDR. R1 gets length.
+    jmp reset
     HLT
 
-print_char:
-    mov #F000 r0
-    rsb
+print_string:
+    MOV R1 R0                   ; R1 will be our current character pointer
+ps_loop:
+    MOV R2 R1*                  ; R2 = character to print (dereference R1: read from memory at address in R1)
+    CMP R2 $0                   ; Compare character with null
+    JZ ps_done                  ; If zero (null terminator), printing is done
+
+    jsb put_char                ; Call subroutine to send character in R2
+    INC R1                      ; Move pointer to the next character
+    JMP ps_loop                 ; Repeat
+ps_done:
+    RSB                         ; Return from subroutine
+
+; put_char: Sends a character to the serial output.
+; Input: R2 = character to send.
+; Modifies: R3 (device addr), R4 (status).
+put_char:
+pc_wait_tx_ready:
+    MOV R3 !serial_status ; R3 = address of the serial status register
+    MOV R4 R3*                 ; R4 = current status value (read from serial status register)
+    AND R4 !TX_READY_MASK      ; Isolate the TX_READY bit
+    JZ pc_wait_tx_ready        ; If zero (not ready), loop and wait
+    
+    MOV R3 !serial_data   ; R3 = address of the serial data register
+    MOV R3* R2                 ; Send character (write R2 to serial data register)
+    RSB
+
+; get_char: Reads a character from serial input and echoes it back.
+; Output: R0 = character read.
+; Modifies: R2 (for echo), R3 (device addr), R4 (status).
+get_char:
+gc_wait_rx_ready:
+    MOV R3 !serial_status ; R3 = address of the serial status register
+    MOV R4 R3*                 ; R4 = current status value
+    AND R4 !RX_READY_MASK      ; Isolate the RX_READY bit
+    JZ gc_wait_rx_ready         ; If zero (no character), loop and wait
+
+    MOV R3 !serial_data   ; R3 = address of the serial data register
+    MOV R0 R3* ; R0 = received character (read from serial data register)
+
+    ; Echo the character back
+    ;MOV R2 R0                  ; Move character to R2 for put_char
+    ;jsb put_char               ; Send it
+    RSB
+
+read_line:
+    MOV R5 !CMD_BUFFER_ADDR    ; R5 = pointer to current position in command buffer
+    MOV R6 $0                  ; R6 = length counter
+rl_loop:
+    jsb get_char               ; R0 = character read (already echoed)
+
+    ; Check for line termination (Carriage Return or Line Feed)
+    CMP R0 !ASCII_CR           ; Compare with CR
+    JZ rl_terminated
+    CMP R0 !ASCII_LF           ; Compare with LF
+    JZ rl_terminated
+    
+    ; TODO: Implement Backspace handling here if desired.
+
+    ; Check if buffer is full (leave space for null terminator)
+    MOV R2 !CMD_BUFFER_MAX_LEN
+    DEC R2                      ; Max index is max_len - 1
+    CMP R6 R2                  ; Compare current length with max allowed index
+    JNZ rl_store_char           ; If R6 != R2 (not full), store character
+    JMP rl_terminated           ; Buffer full, treat as terminated (don't store char)
+
+rl_store_char:
+    MOV R5* R0                 ; Store character R0 into memory at address in R5
+    INC R5                      ; Advance buffer pointer
+    INC R6                      ; Increment length count
+    JMP rl_loop                 ; Get next character
+
+rl_terminated:
+    ; If the terminator was CR, also echo an LF for a clean newline on most terminals
+    CMP R0 !ASCII_CR
+    JNZ rl_skip_lf_echo
+    MOV R2 !ASCII_LF           ; Character to send is LF
+    jsb put_char
+rl_skip_lf_echo:
+    MOV R0 $0                  ; R0 = null character
+    MOV R5* R0                 ; Store null terminator at the end of the string
+    
+    MOV R1 R6                  ; R1 = final length of the string
+    RSB
 
 nmi:
 irq:
-    MOV r0 $33
-    jsb print_char
     rsi
 
 .org #7FFA
