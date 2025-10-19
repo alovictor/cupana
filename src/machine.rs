@@ -2,6 +2,15 @@ use crate::memory::{Memory, ROM_BASE, RAM_BASE, RAM_END};
 const PC: usize = 14;
 const SP: usize = 15;
 
+pub enum Flag {
+    Zero              = 0b0000_0001,
+    Carry             = 0b0000_0010,
+    Negative          = 0b0000_0100,
+    InterruptDisabled = 0b0000_1000,
+    InterruptPending  = 0b0001_0000,
+    Halt              = 0b1000_0000
+}
+
 macro_rules! fetch_u8 {
     ($self:ident, $mem:ident) => {{
         let addr = $self.registers[PC];
@@ -38,6 +47,24 @@ impl Machine {
     pub fn reset(&mut self) {
         self.registers = [0; 16];
         self.flags = 0;
+    }
+
+    fn get_flag(&self, flag: Flag) -> bool {
+        (self.flags & flag as u8) != 0
+    }
+
+    fn set_flag(&mut self, flag: Flag, value: bool) {
+        if value {
+            self.flags |= flag as u8;
+        } else {
+            self.flags &= !(flag as u8);
+        }
+    }
+
+    fn update_flags(&mut self, result: u16) {
+        self.set_flag(Flag::Zero, result == 0);
+        self.set_flag(Flag::Negative, (result & 0x8000) != 0);
+        // self.set_flag(Flag::Carry, (result & 0x10000) != 0);
     }
 
     pub fn step(&mut self, mem: &mut Memory) {
