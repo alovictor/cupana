@@ -90,4 +90,40 @@ mod tests {
         assert_eq!(machine.registers, [0; 16]);
         assert_eq!(machine.flags, 0);
     }
+
+    #[test]
+    fn test_flags() {
+        let mut machine = Machine::new();
+        assert_eq!(machine.get_flag(Flag::Zero), false);
+        assert_eq!(machine.get_flag(Flag::Halt), false);
+
+        machine.set_flag(Flag::Zero, true);
+        assert_eq!(machine.get_flag(Flag::Zero), true);
+        assert_eq!(machine.get_flag(Flag::Carry), false);
+        assert_eq!(machine.flags, 0b0000_0001);
+        
+        machine.set_flag(Flag::Carry, true);
+        assert_eq!(machine.get_flag(Flag::Carry), true);
+        assert_eq!(machine.flags, 0b0000_0011);
+
+        machine.set_flag(Flag::Negative, true);
+        assert_eq!(machine.get_flag(Flag::Negative), true);
+        assert_eq!(machine.flags, 0b0000_0111);
+
+        machine.set_flag(Flag::Carry, false);
+        assert_eq!(machine.get_flag(Flag::Carry), false);
+        assert_eq!(machine.flags, 0b0000_0101);
+
+        machine.set_flag(Flag::InterruptDisabled, true);
+        assert_eq!(machine.get_flag(Flag::InterruptDisabled), true);
+        assert_eq!(machine.flags, 0b0000_1101);
+
+        machine.set_flag(Flag::InterruptPending, true);
+        assert_eq!(machine.get_flag(Flag::InterruptPending), true);
+        assert_eq!(machine.flags, 0b0001_1101);
+
+        machine.set_flag(Flag::Halt, true);
+        assert_eq!(machine.get_flag(Flag::Halt), true);
+        assert_eq!(machine.flags, 0b1001_1101);
+    }
 }
