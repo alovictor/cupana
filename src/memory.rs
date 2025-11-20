@@ -1,19 +1,23 @@
 pub const ROM_SIZE: usize = 0x8000;
-pub const RAM_SIZE: usize = 0x7000;
+pub const RAM_SIZE: usize = 0x6000;
+pub const STACK_SIZE: usize = 0x1000;
 pub const DEVICE_SIZE: usize = 0x1000;
-pub const MEMORY_SIZE: usize = ROM_SIZE + RAM_SIZE + DEVICE_SIZE;
+pub const MEMORY_SIZE: usize = ROM_SIZE + RAM_SIZE + STACK_SIZE + DEVICE_SIZE;
 
 pub const ROM_BASE: u16 = 0x0000;
 pub const RAM_BASE: u16 = ROM_BASE + ROM_SIZE as u16;
-pub const DEVICE_BASE: u16 = RAM_BASE + RAM_SIZE as u16;
+pub const STACK_BASE: u16 = RAM_BASE + RAM_SIZE as u16;
+pub const DEVICE_BASE: u16 = STACK_BASE + STACK_SIZE as u16;
 
 pub const ROM_END: u16 = ROM_BASE + ROM_SIZE as u16 - 1;
 pub const RAM_END: u16 = RAM_BASE + RAM_SIZE as u16 - 1;
+pub const STACK_END: u16 = STACK_BASE + STACK_SIZE as u16 - 1;
 pub const DEVICE_END: u16 = 0xFFFF;
 
 pub struct Memory {
     rom: [u8; ROM_SIZE],
     ram: [u8; RAM_SIZE],
+    stack: [u8; STACK_SIZE],
     device: [u8; DEVICE_SIZE]
 }
 
@@ -22,6 +26,7 @@ impl Memory {
         Memory {
             rom: [0; ROM_SIZE],
             ram: [0; RAM_SIZE],
+            stack: [0; STACK_SIZE],
             device: [0; DEVICE_SIZE]
         }
     }
@@ -34,8 +39,8 @@ impl Memory {
         match address {
             ROM_BASE..=ROM_END => self.rom[(address - ROM_BASE) as usize],
             RAM_BASE..=RAM_END => self.ram[(address - RAM_BASE) as usize],
+            STACK_BASE..=STACK_END => self.stack[(address - STACK_BASE) as usize],
             DEVICE_BASE..=DEVICE_END => self.device[(address - DEVICE_BASE) as usize]
-            // Since the map covers all u16, this is unreachable.
         }
     }
     
@@ -43,6 +48,7 @@ impl Memory {
         match address {
             ROM_BASE..=ROM_END => panic!("Cannot write to ROM address: {}", address),
             RAM_BASE..=RAM_END => self.ram[(address - RAM_BASE) as usize] = value,
+            STACK_BASE..=STACK_END => self.stack[(address - STACK_BASE) as usize] = value,
             DEVICE_BASE..=DEVICE_END => self.device[(address - DEVICE_BASE) as usize] = value
         }
     }
@@ -86,6 +92,15 @@ mod tests {
         mem.write_u8(RAM_END, 0xCD);
         assert_eq!(mem.read_u8(RAM_BASE), 0xAB);
         assert_eq!(mem.read_u8(RAM_END), 0xCD);
+    }
+
+    #[test]
+    fn test_read_write_stack() {
+        let mut mem = Memory::new();
+        mem.write_u8(STACK_BASE, 0x56);
+        mem.write_u8(STACK_END, 0x78);
+        assert_eq!(mem.read_u8(STACK_BASE), 0x56);
+        assert_eq!(mem.read_u8(STACK_END), 0x78);
     }
 
     #[test]
