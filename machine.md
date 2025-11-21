@@ -70,8 +70,8 @@ Quando uma interrupção externa é aceita pelo processador, o hardware realiza 
 | 21  | JPC    | `0x14` | Jump on conditional         | Control Flow     |
 | 22  | JSB    | `0x15` | Jump to Subroutine          | Control Flow     |
 | 23  | RSB    | `0x16` | Return from Subroutine      | Control Flow     |
-| 24  | CLI    | `0x17` | Clear Interrupt flag        | Interrupt Handle |
-| 25  | SEI    | `0x18` | Set Interrupt flag          | Interrupt Handle |
+| 24  | CLI    | `0x17` | Clear Interrupt Enable        | Interrupt Handle |
+| 25  | SEI    | `0x18` | Set Interrupt Enable          | Interrupt Handle |
 | 26  | RSI    | `0x19` | Return from Interrupt       | Interrupt Handle |
 
 As instruções Aritméticas e Lógicas sempre retornam o resultado no primeiro registrador argumento (Reg)

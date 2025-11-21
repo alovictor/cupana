@@ -1,8 +1,10 @@
+use crate::memory::{Memory, ROM_BASE, STACK_BASE};
 use std::ops::{BitAnd, BitOr, BitXor, Shl, Shr};
 
-use crate::memory::{Memory, RAM_BASE, ROM_BASE, STACK_BASE};
 const PC: usize = 14;
 const SP: usize = 15;
+const RESET_VECTOR: u16 = 0x0000;
+const INTERRUPT_ROUTINE_VECTOR: u16 = 0x0000;
 
 #[derive(Debug, PartialEq)]
 enum Opcode {
@@ -176,7 +178,7 @@ impl Machine {
         self.set_flag(Flag::Overflow, overflow);
     }
 
-    fn print_state(&self, mem: &Memory) {
+    fn _print_state(&self, mem: &Memory) {
         println!("------------------------");
         println!(
             "  PC: {:04X}   SP: {:04X}",
@@ -185,7 +187,7 @@ impl Machine {
         println!("  FLAGS: {:08b} ", self.flags as u8);
         println!("REGISTRADORES: ");
         let offset = self.registers.len() / 2;
-        for idx in (0..offset) {
+        for idx in 0..offset {
             println!(
                 "  R{:02}: {:04X}   R{:02}: {:04X}",
                 idx,
@@ -1031,7 +1033,8 @@ impl Machine {
                 }
             }
             Opcode::JSB => {
-                self.push_u16(mem, self.registers[PC]);
+                self.push_u16(mem, self.registers[PC])
+                    .expect("Erro no push");
                 match mode {
                     0 => {
                         println!("JMP R{}", dest);
@@ -1061,15 +1064,23 @@ impl Machine {
                 panic!("Unimplemented opcode: {:?}", opcode);
             }
         }
-        // self.print_state(mem);
+
+        if self.get_flag(Flag::InterruptPending) && self.get_flag(Flag::InterruptEnabled) {
+            self.set_flag(Flag::InterruptEnabled, false);
+            self.set_flag(Flag::InterruptPending, false);
+            self.push_u16(mem, self.flags);
+            self.push_u16(mem, self.registers[PC]);
+            self.registers[PC] = mem.read_u16(INTERRUPT_ROUTINE_VECTOR)
+        }
+
+        // self._print_state(mem);
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::memory::Memory;
-
+    use crate::memory::{Memory, RAM_BASE};
     #[test]
     fn test_reset() {
         let mut machine = Machine::new();
