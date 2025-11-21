@@ -33,11 +33,10 @@ A stack cresce ascendente.
 | NAME               | Hex      |
 | ------------------ | -------- |
 | Zero               | `0x0001` |
-| Carry              | `0x0002` |
-| Negative           | `0x0004` |
-| Overflow           | `0x0008` |
-| Interrupt Disabled | `0x0010` |
-| Interrupt Pending  | `0x0020` |
+| Negative           | `0x0002` |
+| Overflow           | `0x0004` |
+| Interrupt Disabled | `0x0008` |
+| Interrupt Pending  | `0x0010` |
 | Halt               | `0x0080` |
 
 ## Interrupções
@@ -63,9 +62,9 @@ Quando uma interrupção externa é aceita pelo processador, o hardware realiza 
 | 13  | AND    | `0x0C` | Bitwise AND                 | Logic            |
 | 14  | OR     | `0x0D` | Bitwise OR                  | Logic            |
 | 15  | XOR    | `0x0E` | Bitwise XOR                 | Logic            |
-| 16  | SHL    | `0x0F` | Shift Left                  | Logic            |
-| 17  | SHR    | `0x10` | Shift Right                 | Logic            |
-| 18  | NOT    | `0x11` | Bitwise NOT                 | Logic            |
+| 18  | NOT    | `0x0F` | Bitwise NOT                 | Logic            |
+| 16  | SHL    | `0x10` | Shift Left                  | Logic            |
+| 17  | SHR    | `0x11` | Shift Right                 | Logic            |
 | 19  | CMP    | `0x12` | Compare                     | Comparison       |
 | 20  | JMP    | `0x13` | Unconditional jump          | Control Flow     |
 | 21  | JPC    | `0x14` | Jump on conditional         | Control Flow     |
@@ -89,12 +88,12 @@ As instruções Aritméticas e Lógicas sempre retornam o resultado no primeiro 
 
 #### Modos de endereçamento
 
-| Binário | Modo                         | Descrição |
-| ------- | ---------------------------- | --------- |
-| 00      | Registrador Direto           | REG, REG  |
-| 01      | Registrador Imediato         | REG, LIT  |
-| 10      | Registrador Indireto Destino | REG*, REG |
-| 11      | Registrador Indireto Origem  | REG, REG* |
+| Binário | Modo                         | Descrição  |
+| ------- | ---------------------------- | ---------- |
+| 00      | Registrador Direto           | REG, REG   |
+| 01      | Registrador Imediato         | REG, LIT   |
+| 10      | Registrador Indireto Destino | REG\*, REG |
+| 11      | Registrador Indireto Origem  | REG, REG\* |
 
 #### Modos de pulo condicional
 
@@ -111,76 +110,76 @@ As instruções Aritméticas e Lógicas sempre retornam o resultado no primeiro 
 
 #### Instruções disponíveis e seus modos
 
-| OPCODE | B   | Ma  | Mb  | ARG 1 | ARG 2 | Tamanho |
-| ------ | --- | --- | --- | ----- | ----- | ------- |
-| NOP    | 0   | 0   | 0   | -     | -     | 8 bits  |
-| HLT    | 0   | 0   | 0   | -     | -     | 8 bits  |
-| MOV    | 0   | 0   | 0   | Reg   | Reg   | 16 bits |
-| MOV    | 0   | 0   | 1   | Reg   | Lit   | 32 bits |
-| MOV    | 0   | 1   | 0   | Reg*  | Reg   | 16 bits |
-| MOV    | 0   | 1   | 1   | Reg   | Reg*  | 16 bits |
-| MOV    | 1   | 0   | 0   | Reg   | Reg   | 16 bits |
-| MOV    | 1   | 0   | 1   | Reg   | Lit   | 24 bits |
-| MOV    | 1   | 1   | 0   | Reg*  | Reg   | 16 bits |
-| MOV    | 1   | 1   | 1   | Reg   | Reg*  | 16 bits |
-| PHR    | 0   | 0   | 0   | Reg   | -     | 16 bits |
-| PLR    | 0   | 0   | 0   | Reg   | -     | 16 bits |
-| ADD    | 0   | 0   | 0   | Reg   | Reg   | 16 bits |
-| ADD    | 0   | 0   | 1   | Reg   | Lit   | 32 bits |
-| ADD    | 1   | 0   | 0   | Reg   | Reg   | 16 bits |
-| ADD    | 1   | 0   | 1   | Reg   | Lit   | 24 bits |
-| SUB    | 0   | 0   | 0   | Reg   | Reg   | 16 bits |
-| SUB    | 0   | 0   | 1   | Reg   | Lit   | 32 bits |
-| SUB    | 1   | 0   | 0   | Reg   | Reg   | 16 bits |
-| SUB    | 1   | 0   | 1   | Reg   | Lit   | 24 bits |
-| MUL    | 0   | 0   | 0   | Reg   | Reg   | 16 bits |
-| MUL    | 0   | 0   | 1   | Reg   | Lit   | 32 bits |
-| MUL    | 1   | 0   | 0   | Reg   | Reg   | 16 bits |
-| MUL    | 1   | 0   | 1   | Reg   | Lit   | 24 bits |
-| DIV    | 0   | 0   | 0   | Reg   | Reg   | 16 bits |
-| DIV    | 0   | 0   | 1   | Reg   | Lit   | 32 bits |
-| DIV    | 1   | 0   | 0   | Reg   | Reg   | 16 bits |
-| DIV    | 1   | 0   | 1   | Reg   | Lit   | 24 bits |
-| MOD    | 0   | 0   | 0   | Reg   | Reg   | 16 bits |
-| MOD    | 0   | 0   | 1   | Reg   | Lit   | 32 bits |
-| MOD    | 1   | 0   | 0   | Reg   | Reg   | 16 bits |
-| MOD    | 1   | 0   | 1   | Reg   | Lit   | 24 bits |
-| INC    | 0   | 0   | 0   | Reg   | -     | 16 bits |
-| INC    | 1   | 0   | 0   | Reg   | -     | 16 bits |
-| DEC    | 0   | 0   | 0   | Reg   | -     | 16 bits |
-| DEC    | 1   | 0   | 0   | Reg   | -     | 16 bits |
-| AND    | 0   | 0   | 0   | Reg   | Reg   | 16 bits |
-| AND    | 0   | 0   | 1   | Reg   | Lit   | 32 bits |
-| AND    | 1   | 0   | 0   | Reg   | Reg   | 16 bits |
-| AND    | 1   | 0   | 1   | Reg   | Lit   | 24 bits |
-| OR     | 0   | 0   | 0   | Reg   | Reg   | 16 bits |
-| OR     | 0   | 0   | 1   | Reg   | Lit   | 32 bits |
-| OR     | 1   | 0   | 0   | Reg   | Reg   | 16 bits |
-| OR     | 1   | 0   | 1   | Reg   | Lit   | 24 bits |
-| XOR    | 0   | 0   | 0   | Reg   | Reg   | 16 bits |
-| XOR    | 0   | 0   | 1   | Reg   | Lit   | 32 bits |
-| XOR    | 1   | 0   | 0   | Reg   | Reg   | 16 bits |
-| XOR    | 1   | 0   | 1   | Reg   | Lit   | 24 bits |
-| SHL    | 0   | 0   | 0   | Reg   | Reg   | 16 bits |
-| SHL    | 0   | 0   | 1   | Reg   | Lit   | 32 bits |
-| SHL    | 1   | 0   | 0   | Reg   | Reg   | 16 bits |
-| SHL    | 1   | 0   | 1   | Reg   | Lit   | 24 bits |
-| SHR    | 0   | 0   | 0   | Reg   | Reg   | 16 bits |
-| SHR    | 0   | 0   | 1   | Reg   | Lit   | 32 bits |
-| SHR    | 1   | 0   | 0   | Reg   | Reg   | 16 bits |
-| SHR    | 1   | 0   | 1   | Reg   | Lit   | 24 bits |
-| NOT    | 0   | 0   | 0   | Reg   | -     | 16 bits |
-| NOT    | 1   | 0   | 0   | Reg   | -     | 16 bits |
-| CMP    | 0   | 0   | 0   | Reg   | Reg   | 16 bits |
-| CMP    | 0   | 0   | 1   | Reg   | Lit   | 32 bits |
-| CMP    | 1   | 0   | 0   | Reg   | Reg   | 16 bits |
-| CMP    | 1   | 0   | 1   | Reg   | Lit   | 24 bits |
-| JMP    | 0   | 0   | 0   | Reg   | -     | 16 bits |
-| JMP    | 0   | 0   | 1   | Lit   | -     | 24 bits |
-| JPC    | 0   | 0   | 0   | Mode  | Reg   | 16 bits |
-| JPC    | 0   | 0   | 1   | Mode  | Lit   | 32 bits |
-| JSB    | 0   | 0   | 1   | Lit   | -     | 24 bits |
-| RSB    | 0   | 0   | 0   | -     | -     | 8 bits  |
-| CLI    | 0   | 0   | 0   | -     | -     | 8 bits  |
-| SEI    | 0   | 0   | 0   | -     | -     | 8 bits  |
-| RSI    | 0   | 0   | 0   | -     | -     | 8 bits  |
+| OPCODE | B   | Ma  | Mb  | Byte        | ARG 1 | ARG 2 | Tamanho |
+| ------ | --- | --- | --- | ----------- | ----- | ----- | ------- |
+| NOP    | 0   | 0   | 0   | 0b0000_0000 | -     | -     | 8 bits  |
+| HLT    | 0   | 0   | 0   | 0b0000_1000 | -     | -     | 8 bits  |
+| MOV    | 0   | 0   | 0   | 0b0001_0000 | Reg   | Reg   | 16 bits |
+| MOV    | 0   | 0   | 1   | 0b0001_0001 | Reg   | Lit   | 32 bits |
+| MOV    | 0   | 1   | 0   | 0b0001_0010 | Reg\* | Reg   | 16 bits |
+| MOV    | 0   | 1   | 1   | 0b0001_0011 | Reg   | Reg\* | 16 bits |
+| MOV    | 1   | 0   | 0   | 0b0001_0100 | Reg   | Reg   | 16 bits |
+| MOV    | 1   | 0   | 1   | 0b0001_0101 | Reg   | Lit   | 24 bits |
+| MOV    | 1   | 1   | 0   | 0b0001_0111 | Reg\* | Reg   | 16 bits |
+| PHR    | 0   | 0   | 0   | 0b0001_1000 | Reg   | -     | 16 bits |
+| PLR    | 0   | 0   | 0   | 0b0010_0000 | Reg   | -     | 16 bits |
+| ADD    | 0   | 0   | 0   | 0b0010_1000 | Reg   | Reg   | 16 bits |
+| ADD    | 0   | 0   | 1   | 0b0010_1001 | Reg   | Lit   | 32 bits |
+| ADD    | 1   | 0   | 0   | 0b0010_1100 | Reg   | Reg   | 16 bits |
+| ADD    | 1   | 0   | 1   | 0b0010_1101 | Reg   | Lit   | 24 bits |
+| SUB    | 0   | 0   | 0   | 0b0011_0000 | Reg   | Reg   | 16 bits |
+| SUB    | 0   | 0   | 1   | 0b0011_0001 | Reg   | Lit   | 32 bits |
+| SUB    | 1   | 0   | 0   | 0b0011_0100 | Reg   | Reg   | 16 bits |
+| SUB    | 1   | 0   | 1   | 0b0011_0101 | Reg   | Lit   | 24 bits |
+| MUL    | 0   | 0   | 0   | 0b0011_1000 | Reg   | Reg   | 16 bits |
+| MUL    | 0   | 0   | 1   | 0b0011_1001 | Reg   | Lit   | 32 bits |
+| MUL    | 1   | 0   | 0   | 0b0011_1100 | Reg   | Reg   | 16 bits |
+| MUL    | 1   | 0   | 1   | 0b0011_1101 | Reg   | Lit   | 24 bits |
+| DIV    | 0   | 0   | 0   | 0b0100_0000 | Reg   | Reg   | 16 bits |
+| DIV    | 0   | 0   | 1   | 0b0100_0001 | Reg   | Lit   | 32 bits |
+| DIV    | 1   | 0   | 0   | 0b0100_0100 | Reg   | Reg   | 16 bits |
+| DIV    | 1   | 0   | 1   | 0b0100_0101 | Reg   | Lit   | 24 bits |
+| MOD    | 0   | 0   | 0   | 0b0100_1000 | Reg   | Reg   | 16 bits |
+| MOD    | 0   | 0   | 1   | 0b0100_1001 | Reg   | Lit   | 32 bits |
+| MOD    | 1   | 0   | 0   | 0b0100_1100 | Reg   | Reg   | 16 bits |
+| MOD    | 1   | 0   | 1   | 0b0100_1101 | Reg   | Lit   | 24 bits |
+| INC    | 0   | 0   | 0   | 0b0101_0000 | Reg   | -     | 16 bits |
+| INC    | 1   | 0   | 0   | 0b0101_0100 | Reg   | -     | 16 bits |
+| DEC    | 0   | 0   | 0   | 0b0101_1000 | Reg   | -     | 16 bits |
+| DEC    | 1   | 0   | 0   | 0b0101_1100 | Reg   | -     | 16 bits |
+| AND    | 0   | 0   | 0   | 0b0110_0000 | Reg   | Reg   | 16 bits |
+| AND    | 0   | 0   | 1   | 0b0110_0001 | Reg   | Lit   | 32 bits |
+| AND    | 1   | 0   | 0   | 0b0110_0100 | Reg   | Reg   | 16 bits |
+| AND    | 1   | 0   | 1   | 0b0110_0101 | Reg   | Lit   | 24 bits |
+| OR     | 0   | 0   | 0   | 0b0110_1000 | Reg   | Reg   | 16 bits |
+| OR     | 0   | 0   | 1   | 0b0110_1001 | Reg   | Lit   | 32 bits |
+| OR     | 1   | 0   | 0   | 0b0110_1100 | Reg   | Reg   | 16 bits |
+| OR     | 1   | 0   | 1   | 0b0110_1101 | Reg   | Lit   | 24 bits |
+| XOR    | 0   | 0   | 0   | 0b0111_0000 | Reg   | Reg   | 16 bits |
+| XOR    | 0   | 0   | 1   | 0b0111_0001 | Reg   | Lit   | 32 bits |
+| XOR    | 1   | 0   | 0   | 0b0111_0100 | Reg   | Reg   | 16 bits |
+| XOR    | 1   | 0   | 1   | 0b0111_0101 | Reg   | Lit   | 24 bits |
+| NOT    | 0   | 0   | 0   | 0b0111_1000 | Reg   | -     | 16 bits |
+| NOT    | 1   | 0   | 0   | 0b0111_1100 | Reg   | -     | 16 bits |
+| SHL    | 0   | 0   | 0   | 0b1000_0000 | Reg   | Reg   | 16 bits |
+| SHL    | 0   | 0   | 1   | 0b1000_0001 | Reg   | Lit   | 32 bits |
+| SHL    | 1   | 0   | 0   | 0b1000_0100 | Reg   | Reg   | 16 bits |
+| SHL    | 1   | 0   | 1   | 0b1000_0101 | Reg   | Lit   | 24 bits |
+| SHR    | 0   | 0   | 0   | 0b1000_1000 | Reg   | Reg   | 16 bits |
+| SHR    | 0   | 0   | 1   | 0b1000_1001 | Reg   | Lit   | 32 bits |
+| SHR    | 1   | 0   | 0   | 0b1000_1100 | Reg   | Reg   | 16 bits |
+| SHR    | 1   | 0   | 1   | 0b1000_1101 | Reg   | Lit   | 24 bits |
+| CMP    | 0   | 0   | 0   | 0b1001_0000 | Reg   | Reg   | 16 bits |
+| CMP    | 0   | 0   | 1   | 0b1001_0001 | Reg   | Lit   | 32 bits |
+| CMP    | 1   | 0   | 0   | 0b1001_0100 | Reg   | Reg   | 16 bits |
+| CMP    | 1   | 0   | 1   | 0b1001_0101 | Reg   | Lit   | 24 bits |
+| JMP    | 0   | 0   | 0   | 0b1001_1000 | Reg   | -     | 16 bits |
+| JMP    | 0   | 0   | 1   | 0b1001_1001 | Lit   | -     | 24 bits |
+| JPC    | 0   | 0   | 0   | 0b1010_0000 | Mode  | Reg   | 16 bits |
+| JPC    | 0   | 0   | 1   | 0b1010_0001 | Mode  | Lit   | 32 bits |
+| JSB    | 0   | 0   | 0   | 0b1010_1000 | Reg   | -     | 24 bits |
+| JSB    | 0   | 0   | 1   | 0b1010_1001 | Lit   | -     | 24 bits |
+| RSB    | 0   | 0   | 0   | 0b1011_1000 | -     | -     | 8 bits  |
+| CLI    | 0   | 0   | 0   | 0b1100_0000 | -     | -     | 8 bits  |
+| SEI    | 0   | 0   | 0   | 0b1100_1000 | -     | -     | 8 bits  |
+| RSI    | 0   | 0   | 0   | 0b1101_0000 | -     | -     | 8 bits  |
