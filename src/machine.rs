@@ -132,22 +132,10 @@ impl Machine {
         mem.read_u16(addr)
     }
 
-    fn push_u8(&mut self, mem: &mut Memory, value: u8) -> Result<(), String> {
-        mem.write_u8(self.registers[SP], value);
-        self.registers[SP] = self.registers[SP].wrapping_add(1);
-        Ok(())
-    }
-
     fn push_u16(&mut self, mem: &mut Memory, value: u16) -> Result<(), String> {
         mem.write_u16(self.registers[SP], value);
         self.registers[SP] = self.registers[SP].wrapping_add(2);
         Ok(())
-    }
-
-    fn pull_u8(&mut self, mem: &mut Memory) -> u8 {
-        let value = mem.read_u8(self.registers[SP]);
-        self.registers[SP] = self.registers[SP].wrapping_sub(1);
-        value
     }
 
     fn pull_u16(&mut self, mem: &mut Memory) -> u16 {
