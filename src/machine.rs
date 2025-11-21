@@ -1,3 +1,5 @@
+use std::ops::{BitAnd, BitOr, BitXor, Shl, Shr};
+
 use crate::memory::{Memory, RAM_BASE, ROM_BASE, STACK_BASE};
 const PC: usize = 14;
 const SP: usize = 15;
@@ -574,6 +576,362 @@ impl Machine {
                     self.update_flags((result.0 as u16, result.1));
                     self.registers[dest as usize] = result.0 as u16;
                 }
+                _ => {
+                    unreachable!()
+                }
+            },
+            Opcode::AND => match b {
+                // Short
+                0 => match mode {
+                    0 => {
+                        let (dest, orig) = extract_registers_from_byte(self.fetch_u8(mem));
+                        println!("AND R{}, R{}", dest, orig);
+                        let value_dest = self.registers[dest as usize];
+                        let value_orig = self.registers[orig as usize];
+                        let result = value_dest.bitand(value_orig);
+
+                        self.update_flags((result, false));
+                        self.registers[dest as usize] = result;
+                    }
+                    1 => {
+                        let dest = self.fetch_u8(mem);
+                        let value_dest = self.registers[dest as usize];
+                        let value = self.fetch_u16(mem);
+                        println!("AND R{}, {}", dest, value);
+                        let result = value_dest.bitand(value);
+                        self.update_flags((result, false));
+                        self.registers[dest as usize] = result;
+                    }
+                    _ => {
+                        unreachable!()
+                    }
+                },
+                // Byte
+                1 => match mode {
+                    0 => {
+                        let (dest, orig) = extract_registers_from_byte(self.fetch_u8(mem));
+                        println!("AND R{}, R{}", dest, orig);
+                        let value_dest = self.registers[dest as usize] & 0xFF;
+                        let value_orig = self.registers[orig as usize] & 0xFF;
+                        let result = value_dest.bitand(value_orig);
+
+                        self.update_flags((result, false));
+                        self.registers[dest as usize] = result;
+                    }
+                    1 => {
+                        let dest = self.fetch_u8(mem);
+                        let value_dest = self.registers[dest as usize] & 0xFF;
+                        let value = self.fetch_u8(mem) as u16;
+                        println!("AND R{}, {}", dest, value);
+                        let result = value_dest.bitand(value);
+
+                        self.update_flags((result, false));
+                        self.registers[dest as usize] = result;
+                    }
+                    _ => {
+                        unreachable!()
+                    }
+                },
+                _ => {
+                    unreachable!()
+                }
+            },
+            Opcode::OR => match b {
+                // Short
+                0 => match mode {
+                    0 => {
+                        let (dest, orig) = extract_registers_from_byte(self.fetch_u8(mem));
+                        println!("OR R{}, R{}", dest, orig);
+                        let value_dest = self.registers[dest as usize];
+                        let value_orig = self.registers[orig as usize];
+                        let result = value_dest.bitor(value_orig);
+
+                        self.update_flags((result, false));
+                        self.registers[dest as usize] = result;
+                    }
+                    1 => {
+                        let dest = self.fetch_u8(mem);
+                        let value_dest = self.registers[dest as usize];
+                        let value = self.fetch_u16(mem);
+                        println!("OR R{}, {}", dest, value);
+                        let result = value_dest.bitor(value);
+                        self.update_flags((result, false));
+                        self.registers[dest as usize] = result;
+                    }
+                    _ => {
+                        unreachable!()
+                    }
+                },
+                // Byte
+                1 => match mode {
+                    0 => {
+                        let (dest, orig) = extract_registers_from_byte(self.fetch_u8(mem));
+                        println!("OR R{}, R{}", dest, orig);
+                        let value_dest = self.registers[dest as usize] & 0xFF;
+                        let value_orig = self.registers[orig as usize] & 0xFF;
+                        let result = value_dest.bitor(value_orig);
+
+                        self.update_flags((result, false));
+                        self.registers[dest as usize] = result;
+                    }
+                    1 => {
+                        let dest = self.fetch_u8(mem);
+                        let value_dest = self.registers[dest as usize] & 0xFF;
+                        let value = self.fetch_u8(mem) as u16;
+                        println!("OR R{}, {}", dest, value);
+                        let result = value_dest.bitor(value);
+
+                        self.update_flags((result, false));
+                        self.registers[dest as usize] = result;
+                    }
+                    _ => {
+                        unreachable!()
+                    }
+                },
+                _ => {
+                    unreachable!()
+                }
+            },
+            Opcode::XOR => match b {
+                // Short
+                0 => match mode {
+                    0 => {
+                        let (dest, orig) = extract_registers_from_byte(self.fetch_u8(mem));
+                        println!("XOR R{}, R{}", dest, orig);
+                        let value_dest = self.registers[dest as usize];
+                        let value_orig = self.registers[orig as usize];
+                        let result = value_dest.bitxor(value_orig);
+
+                        self.update_flags((result, false));
+                        self.registers[dest as usize] = result;
+                    }
+                    1 => {
+                        let dest = self.fetch_u8(mem);
+                        let value_dest = self.registers[dest as usize];
+                        let value = self.fetch_u16(mem);
+                        println!("XOR R{}, {}", dest, value);
+                        let result = value_dest.bitxor(value);
+                        self.update_flags((result, false));
+                        self.registers[dest as usize] = result;
+                    }
+                    _ => {
+                        unreachable!()
+                    }
+                },
+                // Byte
+                1 => match mode {
+                    0 => {
+                        let (dest, orig) = extract_registers_from_byte(self.fetch_u8(mem));
+                        println!("XOR R{}, R{}", dest, orig);
+                        let value_dest = self.registers[dest as usize] & 0xFF;
+                        let value_orig = self.registers[orig as usize] & 0xFF;
+                        let result = value_dest.bitxor(value_orig);
+
+                        self.update_flags((result, false));
+                        self.registers[dest as usize] = result;
+                    }
+                    1 => {
+                        let dest = self.fetch_u8(mem);
+                        let value_dest = self.registers[dest as usize] & 0xFF;
+                        let value = self.fetch_u8(mem) as u16;
+                        println!("XOR R{}, {}", dest, value);
+                        let result = value_dest.bitxor(value);
+
+                        self.update_flags((result, false));
+                        self.registers[dest as usize] = result;
+                    }
+                    _ => {
+                        unreachable!()
+                    }
+                },
+                _ => {
+                    unreachable!()
+                }
+            },
+            Opcode::NOT => match b {
+                // Short
+                0 => {
+                    let dest = self.fetch_u8(mem);
+                    println!("NOT R{}", dest);
+                    let result = !self.registers[dest as usize];
+
+                    self.update_flags((result, false));
+                    self.registers[dest as usize] = result;
+                }
+                // Byte
+                1 => {
+                    let dest = self.fetch_u8(mem);
+                    println!("NOT R{}", dest);
+                    let result = !self.registers[dest as usize] as u8;
+
+                    self.update_flags((result as u16, false));
+                    self.registers[dest as usize] = result as u16;
+                }
+                _ => {
+                    unreachable!()
+                }
+            },
+            Opcode::SHL => match b {
+                // Short
+                0 => match mode {
+                    0 => {
+                        let (dest, orig) = extract_registers_from_byte(self.fetch_u8(mem));
+                        println!("SHL R{}, R{}", dest, orig);
+                        let value_dest = self.registers[dest as usize];
+                        let value_orig = self.registers[orig as usize];
+                        let result = value_dest.shl(value_orig);
+
+                        self.update_flags((result, false));
+                        self.registers[dest as usize] = result;
+                    }
+                    1 => {
+                        let dest = self.fetch_u8(mem);
+                        let value_dest = self.registers[dest as usize];
+                        let value = self.fetch_u16(mem);
+                        println!("SHL R{}, {}", dest, value);
+                        let result = value_dest.shl(value);
+                        self.update_flags((result, false));
+                        self.registers[dest as usize] = result;
+                    }
+                    _ => {
+                        unreachable!()
+                    }
+                },
+                // Byte
+                1 => match mode {
+                    0 => {
+                        let (dest, orig) = extract_registers_from_byte(self.fetch_u8(mem));
+                        println!("SHL R{}, R{}", dest, orig);
+                        let value_dest = self.registers[dest as usize] & 0xFF;
+                        let value_orig = self.registers[orig as usize] & 0xFF;
+                        let result = value_dest.shl(value_orig);
+
+                        self.update_flags((result, false));
+                        self.registers[dest as usize] = result;
+                    }
+                    1 => {
+                        let dest = self.fetch_u8(mem);
+                        let value_dest = self.registers[dest as usize] & 0xFF;
+                        let value = self.fetch_u8(mem) as u16;
+                        println!("SHL R{}, {}", dest, value);
+                        let result = value_dest.shl(value);
+
+                        self.update_flags((result, false));
+                        self.registers[dest as usize] = result;
+                    }
+                    _ => {
+                        unreachable!()
+                    }
+                },
+                _ => {
+                    unreachable!()
+                }
+            },
+            Opcode::SHR => match b {
+                // Short
+                0 => match mode {
+                    0 => {
+                        let (dest, orig) = extract_registers_from_byte(self.fetch_u8(mem));
+                        println!("SHR R{}, R{}", dest, orig);
+                        let value_dest = self.registers[dest as usize];
+                        let value_orig = self.registers[orig as usize];
+                        let result = value_dest.shr(value_orig);
+
+                        self.update_flags((result, false));
+                        self.registers[dest as usize] = result;
+                    }
+                    1 => {
+                        let dest = self.fetch_u8(mem);
+                        let value_dest = self.registers[dest as usize];
+                        let value = self.fetch_u16(mem);
+                        println!("SHR R{}, {}", dest, value);
+                        let result = value_dest.shr(value);
+                        self.update_flags((result, false));
+                        self.registers[dest as usize] = result;
+                    }
+                    _ => {
+                        unreachable!()
+                    }
+                },
+                // Byte
+                1 => match mode {
+                    0 => {
+                        let (dest, orig) = extract_registers_from_byte(self.fetch_u8(mem));
+                        println!("SHR R{}, R{}", dest, orig);
+                        let value_dest = self.registers[dest as usize] & 0xFF;
+                        let value_orig = self.registers[orig as usize] & 0xFF;
+                        let result = value_dest.shr(value_orig);
+
+                        self.update_flags((result, false));
+                        self.registers[dest as usize] = result;
+                    }
+                    1 => {
+                        let dest = self.fetch_u8(mem);
+                        let value_dest = self.registers[dest as usize] & 0xFF;
+                        let value = self.fetch_u8(mem) as u16;
+                        println!("SHR R{}, {}", dest, value);
+                        let result = value_dest.shr(value);
+
+                        self.update_flags((result, false));
+                        self.registers[dest as usize] = result;
+                    }
+                    _ => {
+                        unreachable!()
+                    }
+                },
+                _ => {
+                    unreachable!()
+                }
+            },
+            Opcode::CMP => match b {
+                // Short
+                0 => match mode {
+                    0 => {
+                        let (dest, orig) = extract_registers_from_byte(self.fetch_u8(mem));
+                        println!("CMP R{}, R{}", dest, orig);
+                        let value_dest = self.registers[dest as usize];
+                        let value_orig = self.registers[orig as usize];
+                        let result = value_dest.overflowing_sub(value_orig);
+
+                        self.update_flags(result);
+                    }
+                    1 => {
+                        let dest = self.fetch_u8(mem);
+                        let value_dest = self.registers[dest as usize];
+                        let value = self.fetch_u16(mem);
+                        println!("CMP R{}, {}", dest, value);
+                        let result = value_dest.overflowing_sub(value);
+
+                        self.update_flags(result);
+                    }
+                    _ => {
+                        unreachable!()
+                    }
+                },
+                // Byte
+                1 => match mode {
+                    0 => {
+                        let (dest, orig) = extract_registers_from_byte(self.fetch_u8(mem));
+                        println!("CMP R{}, R{}", dest, orig);
+                        let value_dest = self.registers[dest as usize] & 0xFF;
+                        let value_orig = self.registers[orig as usize] & 0xFF;
+                        let result = value_dest.overflowing_sub(value_orig);
+
+                        self.update_flags(result);
+                    }
+                    1 => {
+                        let dest = self.fetch_u8(mem);
+                        let value_dest = self.registers[dest as usize] & 0xFF;
+                        let value = self.fetch_u8(mem) as u16;
+                        println!("CMP R{}, {}", dest, value);
+                        let result = value_dest.overflowing_sub(value);
+
+                        self.update_flags(result);
+                    }
+                    _ => {
+                        unreachable!()
+                    }
+                },
                 _ => {
                     unreachable!()
                 }
