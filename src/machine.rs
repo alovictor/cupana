@@ -1,10 +1,12 @@
+use crate::memory::{Memory, ROM_BASE, STACK_BASE};
 use std::ops::{BitAnd, BitOr, BitXor, Shl, Shr};
 
-use crate::memory::{Memory, RAM_BASE, ROM_BASE, STACK_BASE};
 const PC: usize = 14;
 const SP: usize = 15;
+const RESET_VECTOR: u16 = 0x0000;
+const INTERRUPT_ROUTINE_VECTOR: u16 = 0x0000;
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 enum Opcode {
     NOP,
     HLT,
@@ -53,9 +55,9 @@ impl From<u8> for Opcode {
             0x0C => Opcode::AND,
             0x0D => Opcode::OR,
             0x0E => Opcode::XOR,
-            0x0F => Opcode::SHL,
-            0x10 => Opcode::SHR,
-            0x11 => Opcode::NOT,
+            0x0F => Opcode::NOT,
+            0x10 => Opcode::SHL,
+            0x11 => Opcode::SHR,
             0x12 => Opcode::CMP,
             0x13 => Opcode::JMP,
             0x14 => Opcode::JPC,
@@ -69,11 +71,35 @@ impl From<u8> for Opcode {
     }
 }
 
+enum JumpMode {
+    Zero,
+    NotZero,
+    Negative,
+    NotNegative,
+    Overflow,
+    NotOverflow,
+    None,
+}
+
+impl From<u8> for JumpMode {
+    fn from(value: u8) -> Self {
+        match value {
+            0 => JumpMode::Zero,
+            1 => JumpMode::NotZero,
+            2 => JumpMode::Negative,
+            3 => JumpMode::NotNegative,
+            4 => JumpMode::Overflow,
+            5 => JumpMode::NotOverflow,
+            _ => JumpMode::None,
+        }
+    }
+}
+
 pub enum Flag {
     Zero = 0x0001,
     Negative = 0x0002,
     Overflow = 0x0004,
-    InterruptDisabled = 0x0008,
+    InterruptEnabled = 0x0008,
     InterruptPending = 0x0010,
     Halt = 0x0080,
 }
@@ -152,7 +178,7 @@ impl Machine {
         self.set_flag(Flag::Overflow, overflow);
     }
 
-    fn print_state(&self, mem: &Memory) {
+    fn _print_state(&self, mem: &Memory) {
         println!("------------------------");
         println!(
             "  PC: {:04X}   SP: {:04X}",
@@ -161,7 +187,7 @@ impl Machine {
         println!("  FLAGS: {:08b} ", self.flags as u8);
         println!("REGISTRADORES: ");
         let offset = self.registers.len() / 2;
-        for idx in (0..offset) {
+        for idx in 0..offset {
             println!(
                 "  R{:02}: {:04X}   R{:02}: {:04X}",
                 idx,
@@ -181,6 +207,60 @@ impl Machine {
         let b = (byte >> 2) & 1;
         let mode = byte & 0b11;
 
+        let mut dest: u8 = 0;
+        let mut orig: u8 = 0;
+        let mut literal_u16: u16 = 0;
+        let mut literal_u8: u8 = 0;
+
+        if [
+            Opcode::PHR,
+            Opcode::PLR,
+            Opcode::INC,
+            Opcode::DEC,
+            Opcode::NOT,
+            Opcode::JMP,
+            Opcode::JSB,
+        ]
+        .contains(&opcode)
+        {
+            match b {
+                0 => match mode {
+                    0 => dest = self.fetch_u8(mem),
+                    1 => literal_u16 = self.fetch_u16(mem),
+                    _ => unreachable!(),
+                },
+                1 => match mode {
+                    0 => dest = self.fetch_u8(mem),
+                    1 => literal_u8 = self.fetch_u8(mem),
+                    _ => unreachable!(),
+                },
+                _ => unreachable!(),
+            }
+        } else if ![
+            Opcode::NOP,
+            Opcode::HLT,
+            Opcode::RSB,
+            Opcode::CLI,
+            Opcode::SEI,
+            Opcode::RSI,
+        ]
+        .contains(&opcode)
+        {
+            match b {
+                0 => match mode {
+                    0 | 2 | 3 => (dest, orig) = extract_registers_from_byte(self.fetch_u8(mem)),
+                    1 => (dest, literal_u16) = (self.fetch_u8(mem), self.fetch_u16(mem)),
+                    _ => unreachable!(),
+                },
+                1 => match mode {
+                    0 | 2 => (dest, orig) = extract_registers_from_byte(self.fetch_u8(mem)),
+                    1 => (dest, literal_u8) = (self.fetch_u8(mem), self.fetch_u8(mem)),
+                    _ => unreachable!(),
+                },
+                _ => unreachable!(),
+            }
+        }
+
         match opcode {
             Opcode::NOP => {
                 println!("NOP");
@@ -192,26 +272,22 @@ impl Machine {
             Opcode::MOV => match b {
                 0 => match mode {
                     0 => {
-                        let (dest, orig) = extract_registers_from_byte(self.fetch_u8(mem));
+                        // let (dest, orig) = extract_registers_from_byte(self.fetch_u8(mem));
                         println!("MOV R{}, R{}", dest, orig);
                         let value = self.registers[orig as usize];
                         self.registers[dest as usize] = value;
                     }
                     1 => {
-                        let reg = self.fetch_u8(mem);
-                        let value = self.fetch_u16(mem);
-                        println!("MOV R{}, {}", reg, value);
-                        self.registers[reg as usize] = value;
+                        println!("MOV R{}, {}", dest, literal_u16);
+                        self.registers[dest as usize] = literal_u16;
                     }
                     2 => {
-                        let (desti, orig) = extract_registers_from_byte(self.fetch_u8(mem));
-                        println!("MOV R{}*, R{}", desti, orig);
-                        let addr = self.registers[desti as usize];
+                        println!("MOV R{}*, R{}", dest, orig);
+                        let addr = self.registers[dest as usize];
                         let value = self.registers[orig as usize];
                         mem.write_u16(addr, value);
                     }
                     3 => {
-                        let (dest, orig) = extract_registers_from_byte(self.fetch_u8(mem));
                         println!("MOV R{}, R{}*", dest, orig);
                         let addr = self.registers[orig as usize];
                         let value = mem.read_u16(addr);
@@ -221,21 +297,17 @@ impl Machine {
                 },
                 1 => match mode {
                     0 => {
-                        let (dest, orig) = extract_registers_from_byte(self.fetch_u8(mem));
                         println!("MOVB R{}, R{}", dest, orig);
                         let value = self.registers[orig as usize] as u8;
                         self.registers[dest as usize] = value as u16;
                     }
                     1 => {
-                        let reg = self.fetch_u8(mem);
-                        let value = self.fetch_u8(mem);
-                        println!("MOVB R{}, {}", reg, value);
-                        self.registers[reg as usize] = value as u16;
+                        println!("MOVB R{}, {}", dest, literal_u8);
+                        self.registers[dest as usize] = literal_u8 as u16;
                     }
                     2 => {
-                        let (desti, orig) = extract_registers_from_byte(self.fetch_u8(mem));
-                        println!("MOVB R{}*, R{}", desti, orig);
-                        let addr = self.registers[desti as usize];
+                        println!("MOVB R{}*, R{}", dest, orig);
+                        let addr = self.registers[dest as usize];
                         let value = self.registers[orig as usize] as u8;
                         mem.write_u8(addr, value);
                     }
@@ -244,13 +316,11 @@ impl Machine {
                 _ => unreachable!(),
             },
             Opcode::PHR => {
-                let orig = self.fetch_u8(mem);
-                println!("PHR R{}", orig);
-                self.push_u16(mem, self.registers[orig as usize])
+                println!("PHR R{}", dest);
+                self.push_u16(mem, self.registers[dest as usize])
                     .expect("Erro no push_16");
             }
             Opcode::PLR => {
-                let dest = self.fetch_u8(mem);
                 println!("PLR R{}", dest);
                 self.registers[dest as usize] = self.pull_u16(mem);
             }
@@ -258,7 +328,6 @@ impl Machine {
                 // Short
                 0 => match mode {
                     0 => {
-                        let (dest, orig) = extract_registers_from_byte(self.fetch_u8(mem));
                         println!("ADD R{}, R{}", dest, orig);
                         let value_dest = self.registers[dest as usize];
                         let value_orig = self.registers[orig as usize];
@@ -268,11 +337,9 @@ impl Machine {
                         self.registers[dest as usize] = result.0;
                     }
                     1 => {
-                        let dest = self.fetch_u8(mem);
+                        println!("ADD R{}, {}", dest, literal_u16);
                         let value_dest = self.registers[dest as usize];
-                        let value = self.fetch_u16(mem);
-                        println!("ADD R{}, {}", dest, value);
-                        let result = value_dest.overflowing_add(value);
+                        let result = value_dest.overflowing_add(literal_u16);
                         self.update_flags(result);
                         self.registers[dest as usize] = result.0;
                     }
@@ -283,7 +350,6 @@ impl Machine {
                 // Byte
                 1 => match mode {
                     0 => {
-                        let (dest, orig) = extract_registers_from_byte(self.fetch_u8(mem));
                         println!("ADD R{}, R{}", dest, orig);
                         let value_dest = self.registers[dest as usize] & 0xFF;
                         let value_orig = self.registers[orig as usize] & 0xFF;
@@ -293,12 +359,9 @@ impl Machine {
                         self.registers[dest as usize] = result.0;
                     }
                     1 => {
-                        let dest = self.fetch_u8(mem);
-                        let value_dest = self.registers[dest as usize] & 0xFF;
-                        let value = self.fetch_u8(mem) as u16;
-                        println!("ADD R{}, {}", dest, value);
-                        let result = value_dest.overflowing_add(value);
-
+                        println!("ADD R{}, {}", dest, literal_u16);
+                        let value_dest = self.registers[dest as usize];
+                        let result = value_dest.overflowing_add(literal_u8 as u16);
                         self.update_flags(result);
                         self.registers[dest as usize] = result.0;
                     }
@@ -314,7 +377,6 @@ impl Machine {
                 // Short
                 0 => match mode {
                     0 => {
-                        let (dest, orig) = extract_registers_from_byte(self.fetch_u8(mem));
                         println!("SUB R{}, R{}", dest, orig);
                         let value_dest = self.registers[dest as usize];
                         let value_orig = self.registers[orig as usize];
@@ -324,11 +386,9 @@ impl Machine {
                         self.registers[dest as usize] = result.0;
                     }
                     1 => {
-                        let dest = self.fetch_u8(mem);
                         let value_dest = self.registers[dest as usize];
-                        let value = self.fetch_u16(mem);
-                        println!("SUB R{}, {}", dest, value);
-                        let result = value_dest.overflowing_sub(value);
+                        println!("SUB R{}, {}", dest, literal_u16);
+                        let result = value_dest.overflowing_sub(literal_u16);
                         self.update_flags(result);
                         self.registers[dest as usize] = result.0;
                     }
@@ -339,7 +399,6 @@ impl Machine {
                 // Byte
                 1 => match mode {
                     0 => {
-                        let (dest, orig) = extract_registers_from_byte(self.fetch_u8(mem));
                         println!("SUB R{}, R{}", dest, orig);
                         let value_dest = self.registers[dest as usize] & 0xFF;
                         let value_orig = self.registers[orig as usize] & 0xFF;
@@ -349,11 +408,9 @@ impl Machine {
                         self.registers[dest as usize] = result.0;
                     }
                     1 => {
-                        let dest = self.fetch_u8(mem);
                         let value_dest = self.registers[dest as usize] & 0xFF;
-                        let value = self.fetch_u8(mem) as u16;
-                        println!("SUB R{}, {}", dest, value);
-                        let result = value_dest.overflowing_sub(value);
+                        println!("SUB R{}, {}", dest, literal_u8);
+                        let result = value_dest.overflowing_sub(literal_u8 as u16);
 
                         self.update_flags(result);
                         self.registers[dest as usize] = result.0;
@@ -370,7 +427,6 @@ impl Machine {
                 // Short
                 0 => match mode {
                     0 => {
-                        let (dest, orig) = extract_registers_from_byte(self.fetch_u8(mem));
                         println!("MUL R{}, R{}", dest, orig);
                         let value_dest = self.registers[dest as usize];
                         let value_orig = self.registers[orig as usize];
@@ -380,11 +436,9 @@ impl Machine {
                         self.registers[dest as usize] = result.0;
                     }
                     1 => {
-                        let dest = self.fetch_u8(mem);
                         let value_dest = self.registers[dest as usize];
-                        let value = self.fetch_u16(mem);
-                        println!("MUL R{}, {}", dest, value);
-                        let result = value_dest.overflowing_mul(value);
+                        println!("MUL R{}, {}", dest, literal_u16);
+                        let result = value_dest.overflowing_mul(literal_u16);
                         self.update_flags(result);
                         self.registers[dest as usize] = result.0;
                     }
@@ -395,7 +449,6 @@ impl Machine {
                 // Byte
                 1 => match mode {
                     0 => {
-                        let (dest, orig) = extract_registers_from_byte(self.fetch_u8(mem));
                         println!("MUL R{}, R{}", dest, orig);
                         let value_dest = self.registers[dest as usize] & 0xFF;
                         let value_orig = self.registers[orig as usize] & 0xFF;
@@ -405,11 +458,9 @@ impl Machine {
                         self.registers[dest as usize] = result.0;
                     }
                     1 => {
-                        let dest = self.fetch_u8(mem);
                         let value_dest = self.registers[dest as usize] & 0xFF;
-                        let value = self.fetch_u8(mem) as u16;
-                        println!("MUL R{}, {}", dest, value);
-                        let result = value_dest.overflowing_mul(value);
+                        println!("MUL R{}, {}", dest, literal_u8);
+                        let result = value_dest.overflowing_mul(literal_u8 as u16);
 
                         self.update_flags(result);
                         self.registers[dest as usize] = result.0;
@@ -426,7 +477,6 @@ impl Machine {
                 // Short
                 0 => match mode {
                     0 => {
-                        let (dest, orig) = extract_registers_from_byte(self.fetch_u8(mem));
                         println!("DIV R{}, R{}", dest, orig);
                         let value_dest = self.registers[dest as usize];
                         let value_orig = self.registers[orig as usize];
@@ -436,11 +486,9 @@ impl Machine {
                         self.registers[dest as usize] = result.0;
                     }
                     1 => {
-                        let dest = self.fetch_u8(mem);
                         let value_dest = self.registers[dest as usize];
-                        let value = self.fetch_u16(mem);
-                        println!("DIV R{}, {}", dest, value);
-                        let result = value_dest.overflowing_div(value);
+                        println!("DIV R{}, {}", dest, literal_u16);
+                        let result = value_dest.overflowing_div(literal_u16);
                         self.update_flags(result);
                         self.registers[dest as usize] = result.0;
                     }
@@ -451,7 +499,6 @@ impl Machine {
                 // Byte
                 1 => match mode {
                     0 => {
-                        let (dest, orig) = extract_registers_from_byte(self.fetch_u8(mem));
                         println!("DIV R{}, R{}", dest, orig);
                         let value_dest = self.registers[dest as usize] & 0xFF;
                         let value_orig = self.registers[orig as usize] & 0xFF;
@@ -461,11 +508,9 @@ impl Machine {
                         self.registers[dest as usize] = result.0;
                     }
                     1 => {
-                        let dest = self.fetch_u8(mem);
                         let value_dest = self.registers[dest as usize] & 0xFF;
-                        let value = self.fetch_u8(mem) as u16;
-                        println!("DIV R{}, {}", dest, value);
-                        let result = value_dest.overflowing_div(value);
+                        println!("DIV R{}, {}", dest, literal_u8);
+                        let result = value_dest.overflowing_div(literal_u8 as u16);
 
                         self.update_flags(result);
                         self.registers[dest as usize] = result.0;
@@ -482,7 +527,6 @@ impl Machine {
                 // Short
                 0 => match mode {
                     0 => {
-                        let (dest, orig) = extract_registers_from_byte(self.fetch_u8(mem));
                         println!("MOD R{}, R{}", dest, orig);
                         let value_dest = self.registers[dest as usize];
                         let value_orig = self.registers[orig as usize];
@@ -492,11 +536,9 @@ impl Machine {
                         self.registers[dest as usize] = result.0;
                     }
                     1 => {
-                        let dest = self.fetch_u8(mem);
                         let value_dest = self.registers[dest as usize];
-                        let value = self.fetch_u16(mem);
-                        println!("MOD R{}, {}", dest, value);
-                        let result = value_dest.overflowing_rem(value);
+                        println!("MOD R{}, {}", dest, literal_u16);
+                        let result = value_dest.overflowing_rem(literal_u16);
                         self.update_flags(result);
                         self.registers[dest as usize] = result.0;
                     }
@@ -507,7 +549,6 @@ impl Machine {
                 // Byte
                 1 => match mode {
                     0 => {
-                        let (dest, orig) = extract_registers_from_byte(self.fetch_u8(mem));
                         println!("MOD R{}, R{}", dest, orig);
                         let value_dest = self.registers[dest as usize] & 0xFF;
                         let value_orig = self.registers[orig as usize] & 0xFF;
@@ -517,11 +558,9 @@ impl Machine {
                         self.registers[dest as usize] = result.0;
                     }
                     1 => {
-                        let dest = self.fetch_u8(mem);
                         let value_dest = self.registers[dest as usize] & 0xFF;
-                        let value = self.fetch_u8(mem) as u16;
-                        println!("MOD R{}, {}", dest, value);
-                        let result = value_dest.overflowing_rem(value);
+                        println!("MOD R{}, {}", dest, literal_u8);
+                        let result = value_dest.overflowing_rem(literal_u8 as u16);
 
                         self.update_flags(result);
                         self.registers[dest as usize] = result.0;
@@ -536,7 +575,6 @@ impl Machine {
             },
             Opcode::INC => match b {
                 0 => {
-                    let dest = self.fetch_u8(mem);
                     println!("INC R{}", dest);
                     let value_dest = self.registers[dest as usize];
                     let result = value_dest.overflowing_add(1);
@@ -545,9 +583,8 @@ impl Machine {
                     self.registers[dest as usize] = result.0;
                 }
                 1 => {
-                    let dest = self.fetch_u8(mem);
                     println!("INC R{}", dest);
-                    let value_dest = self.registers[dest as usize] as u8;
+                    let value_dest = self.registers[dest as usize];
                     let result = value_dest.overflowing_add(1);
 
                     self.update_flags((result.0 as u16, result.1));
@@ -559,7 +596,6 @@ impl Machine {
             },
             Opcode::DEC => match b {
                 0 => {
-                    let dest = self.fetch_u8(mem);
                     println!("DEC R{}", dest);
                     let value_dest = self.registers[dest as usize];
                     let result = value_dest.overflowing_sub(1);
@@ -568,9 +604,8 @@ impl Machine {
                     self.registers[dest as usize] = result.0;
                 }
                 1 => {
-                    let dest = self.fetch_u8(mem);
                     println!("DEC R{}", dest);
-                    let value_dest = self.registers[dest as usize] as u8;
+                    let value_dest = self.registers[dest as usize];
                     let result = value_dest.overflowing_sub(1);
 
                     self.update_flags((result.0 as u16, result.1));
@@ -584,7 +619,6 @@ impl Machine {
                 // Short
                 0 => match mode {
                     0 => {
-                        let (dest, orig) = extract_registers_from_byte(self.fetch_u8(mem));
                         println!("AND R{}, R{}", dest, orig);
                         let value_dest = self.registers[dest as usize];
                         let value_orig = self.registers[orig as usize];
@@ -594,11 +628,9 @@ impl Machine {
                         self.registers[dest as usize] = result;
                     }
                     1 => {
-                        let dest = self.fetch_u8(mem);
                         let value_dest = self.registers[dest as usize];
-                        let value = self.fetch_u16(mem);
-                        println!("AND R{}, {}", dest, value);
-                        let result = value_dest.bitand(value);
+                        println!("AND R{}, {}", dest, literal_u16);
+                        let result = value_dest.bitand(literal_u16);
                         self.update_flags((result, false));
                         self.registers[dest as usize] = result;
                     }
@@ -609,7 +641,6 @@ impl Machine {
                 // Byte
                 1 => match mode {
                     0 => {
-                        let (dest, orig) = extract_registers_from_byte(self.fetch_u8(mem));
                         println!("AND R{}, R{}", dest, orig);
                         let value_dest = self.registers[dest as usize] & 0xFF;
                         let value_orig = self.registers[orig as usize] & 0xFF;
@@ -619,11 +650,9 @@ impl Machine {
                         self.registers[dest as usize] = result;
                     }
                     1 => {
-                        let dest = self.fetch_u8(mem);
                         let value_dest = self.registers[dest as usize] & 0xFF;
-                        let value = self.fetch_u8(mem) as u16;
-                        println!("AND R{}, {}", dest, value);
-                        let result = value_dest.bitand(value);
+                        println!("AND R{}, {}", dest, literal_u8);
+                        let result = value_dest.bitand(literal_u8 as u16);
 
                         self.update_flags((result, false));
                         self.registers[dest as usize] = result;
@@ -640,7 +669,6 @@ impl Machine {
                 // Short
                 0 => match mode {
                     0 => {
-                        let (dest, orig) = extract_registers_from_byte(self.fetch_u8(mem));
                         println!("OR R{}, R{}", dest, orig);
                         let value_dest = self.registers[dest as usize];
                         let value_orig = self.registers[orig as usize];
@@ -650,11 +678,9 @@ impl Machine {
                         self.registers[dest as usize] = result;
                     }
                     1 => {
-                        let dest = self.fetch_u8(mem);
                         let value_dest = self.registers[dest as usize];
-                        let value = self.fetch_u16(mem);
-                        println!("OR R{}, {}", dest, value);
-                        let result = value_dest.bitor(value);
+                        println!("OR R{}, {}", dest, literal_u16);
+                        let result = value_dest.bitor(literal_u16);
                         self.update_flags((result, false));
                         self.registers[dest as usize] = result;
                     }
@@ -665,7 +691,6 @@ impl Machine {
                 // Byte
                 1 => match mode {
                     0 => {
-                        let (dest, orig) = extract_registers_from_byte(self.fetch_u8(mem));
                         println!("OR R{}, R{}", dest, orig);
                         let value_dest = self.registers[dest as usize] & 0xFF;
                         let value_orig = self.registers[orig as usize] & 0xFF;
@@ -675,11 +700,9 @@ impl Machine {
                         self.registers[dest as usize] = result;
                     }
                     1 => {
-                        let dest = self.fetch_u8(mem);
                         let value_dest = self.registers[dest as usize] & 0xFF;
-                        let value = self.fetch_u8(mem) as u16;
-                        println!("OR R{}, {}", dest, value);
-                        let result = value_dest.bitor(value);
+                        println!("OR R{}, {}", dest, literal_u8);
+                        let result = value_dest.bitor(literal_u8 as u16);
 
                         self.update_flags((result, false));
                         self.registers[dest as usize] = result;
@@ -696,7 +719,6 @@ impl Machine {
                 // Short
                 0 => match mode {
                     0 => {
-                        let (dest, orig) = extract_registers_from_byte(self.fetch_u8(mem));
                         println!("XOR R{}, R{}", dest, orig);
                         let value_dest = self.registers[dest as usize];
                         let value_orig = self.registers[orig as usize];
@@ -706,11 +728,9 @@ impl Machine {
                         self.registers[dest as usize] = result;
                     }
                     1 => {
-                        let dest = self.fetch_u8(mem);
                         let value_dest = self.registers[dest as usize];
-                        let value = self.fetch_u16(mem);
-                        println!("XOR R{}, {}", dest, value);
-                        let result = value_dest.bitxor(value);
+                        println!("XOR R{}, {}", dest, literal_u16);
+                        let result = value_dest.bitxor(literal_u16);
                         self.update_flags((result, false));
                         self.registers[dest as usize] = result;
                     }
@@ -721,7 +741,6 @@ impl Machine {
                 // Byte
                 1 => match mode {
                     0 => {
-                        let (dest, orig) = extract_registers_from_byte(self.fetch_u8(mem));
                         println!("XOR R{}, R{}", dest, orig);
                         let value_dest = self.registers[dest as usize] & 0xFF;
                         let value_orig = self.registers[orig as usize] & 0xFF;
@@ -731,11 +750,9 @@ impl Machine {
                         self.registers[dest as usize] = result;
                     }
                     1 => {
-                        let dest = self.fetch_u8(mem);
                         let value_dest = self.registers[dest as usize] & 0xFF;
-                        let value = self.fetch_u8(mem) as u16;
-                        println!("XOR R{}, {}", dest, value);
-                        let result = value_dest.bitxor(value);
+                        println!("XOR R{}, {}", dest, literal_u8);
+                        let result = value_dest.bitxor(literal_u8 as u16);
 
                         self.update_flags((result, false));
                         self.registers[dest as usize] = result;
@@ -751,21 +768,17 @@ impl Machine {
             Opcode::NOT => match b {
                 // Short
                 0 => {
-                    let dest = self.fetch_u8(mem);
                     println!("NOT R{}", dest);
-                    let result = !self.registers[dest as usize];
-
-                    self.update_flags((result, false));
-                    self.registers[dest as usize] = result;
+                    let result = self.registers[dest as usize].overflowing_neg();
+                    self.update_flags(result);
+                    self.registers[dest as usize] = result.0;
                 }
                 // Byte
                 1 => {
-                    let dest = self.fetch_u8(mem);
-                    println!("NOT R{}", dest);
-                    let result = !self.registers[dest as usize] as u8;
-
-                    self.update_flags((result as u16, false));
-                    self.registers[dest as usize] = result as u16;
+                    println!("NOTB R{}", dest);
+                    let result = self.registers[dest as usize].overflowing_neg();
+                    self.update_flags(result);
+                    self.registers[dest as usize] = result.0;
                 }
                 _ => {
                     unreachable!()
@@ -775,7 +788,6 @@ impl Machine {
                 // Short
                 0 => match mode {
                     0 => {
-                        let (dest, orig) = extract_registers_from_byte(self.fetch_u8(mem));
                         println!("SHL R{}, R{}", dest, orig);
                         let value_dest = self.registers[dest as usize];
                         let value_orig = self.registers[orig as usize];
@@ -785,11 +797,9 @@ impl Machine {
                         self.registers[dest as usize] = result;
                     }
                     1 => {
-                        let dest = self.fetch_u8(mem);
                         let value_dest = self.registers[dest as usize];
-                        let value = self.fetch_u16(mem);
-                        println!("SHL R{}, {}", dest, value);
-                        let result = value_dest.shl(value);
+                        println!("SHL R{}, {}", dest, literal_u16);
+                        let result = value_dest.shl(literal_u16);
                         self.update_flags((result, false));
                         self.registers[dest as usize] = result;
                     }
@@ -800,7 +810,6 @@ impl Machine {
                 // Byte
                 1 => match mode {
                     0 => {
-                        let (dest, orig) = extract_registers_from_byte(self.fetch_u8(mem));
                         println!("SHL R{}, R{}", dest, orig);
                         let value_dest = self.registers[dest as usize] & 0xFF;
                         let value_orig = self.registers[orig as usize] & 0xFF;
@@ -810,11 +819,9 @@ impl Machine {
                         self.registers[dest as usize] = result;
                     }
                     1 => {
-                        let dest = self.fetch_u8(mem);
                         let value_dest = self.registers[dest as usize] & 0xFF;
-                        let value = self.fetch_u8(mem) as u16;
-                        println!("SHL R{}, {}", dest, value);
-                        let result = value_dest.shl(value);
+                        println!("SHL R{}, {}", dest, literal_u8);
+                        let result = value_dest.shl(literal_u8);
 
                         self.update_flags((result, false));
                         self.registers[dest as usize] = result;
@@ -831,7 +838,6 @@ impl Machine {
                 // Short
                 0 => match mode {
                     0 => {
-                        let (dest, orig) = extract_registers_from_byte(self.fetch_u8(mem));
                         println!("SHR R{}, R{}", dest, orig);
                         let value_dest = self.registers[dest as usize];
                         let value_orig = self.registers[orig as usize];
@@ -841,11 +847,9 @@ impl Machine {
                         self.registers[dest as usize] = result;
                     }
                     1 => {
-                        let dest = self.fetch_u8(mem);
                         let value_dest = self.registers[dest as usize];
-                        let value = self.fetch_u16(mem);
-                        println!("SHR R{}, {}", dest, value);
-                        let result = value_dest.shr(value);
+                        println!("SHR R{}, {}", dest, literal_u16);
+                        let result = value_dest.shr(literal_u16);
                         self.update_flags((result, false));
                         self.registers[dest as usize] = result;
                     }
@@ -856,7 +860,6 @@ impl Machine {
                 // Byte
                 1 => match mode {
                     0 => {
-                        let (dest, orig) = extract_registers_from_byte(self.fetch_u8(mem));
                         println!("SHR R{}, R{}", dest, orig);
                         let value_dest = self.registers[dest as usize] & 0xFF;
                         let value_orig = self.registers[orig as usize] & 0xFF;
@@ -866,11 +869,9 @@ impl Machine {
                         self.registers[dest as usize] = result;
                     }
                     1 => {
-                        let dest = self.fetch_u8(mem);
                         let value_dest = self.registers[dest as usize] & 0xFF;
-                        let value = self.fetch_u8(mem) as u16;
-                        println!("SHR R{}, {}", dest, value);
-                        let result = value_dest.shr(value);
+                        println!("SHR R{}, {}", dest, literal_u8);
+                        let result = value_dest.shr(literal_u8);
 
                         self.update_flags((result, false));
                         self.registers[dest as usize] = result;
@@ -887,7 +888,6 @@ impl Machine {
                 // Short
                 0 => match mode {
                     0 => {
-                        let (dest, orig) = extract_registers_from_byte(self.fetch_u8(mem));
                         println!("CMP R{}, R{}", dest, orig);
                         let value_dest = self.registers[dest as usize];
                         let value_orig = self.registers[orig as usize];
@@ -896,11 +896,9 @@ impl Machine {
                         self.update_flags(result);
                     }
                     1 => {
-                        let dest = self.fetch_u8(mem);
                         let value_dest = self.registers[dest as usize];
-                        let value = self.fetch_u16(mem);
-                        println!("CMP R{}, {}", dest, value);
-                        let result = value_dest.overflowing_sub(value);
+                        println!("CMP R{}, {}", dest, literal_u16);
+                        let result = value_dest.overflowing_sub(literal_u16);
 
                         self.update_flags(result);
                     }
@@ -911,7 +909,6 @@ impl Machine {
                 // Byte
                 1 => match mode {
                     0 => {
-                        let (dest, orig) = extract_registers_from_byte(self.fetch_u8(mem));
                         println!("CMP R{}, R{}", dest, orig);
                         let value_dest = self.registers[dest as usize] & 0xFF;
                         let value_orig = self.registers[orig as usize] & 0xFF;
@@ -920,11 +917,9 @@ impl Machine {
                         self.update_flags(result);
                     }
                     1 => {
-                        let dest = self.fetch_u8(mem);
                         let value_dest = self.registers[dest as usize] & 0xFF;
-                        let value = self.fetch_u8(mem) as u16;
-                        println!("CMP R{}, {}", dest, value);
-                        let result = value_dest.overflowing_sub(value);
+                        println!("CMP R{}, {}", dest, literal_u8);
+                        let result = value_dest.overflowing_sub(literal_u8 as u16);
 
                         self.update_flags(result);
                     }
@@ -936,19 +931,156 @@ impl Machine {
                     unreachable!()
                 }
             },
+            Opcode::JMP => match mode {
+                0 => {
+                    println!("JMP R{}", orig);
+                    let value_orig = self.registers[orig as usize];
+                    self.registers[PC] = value_orig;
+                }
+                1 => {
+                    self.registers[PC] = literal_u16;
+                }
+                _ => unreachable!(),
+            },
+            Opcode::JPC => {
+                let jpm_mode = JumpMode::from(dest);
+                match mode {
+                    0 => match jpm_mode {
+                        JumpMode::Zero => {
+                            if self.get_flag(Flag::Zero) {
+                                println!("JPC R{}", orig);
+                                let value_orig = self.registers[orig as usize];
+                                self.registers[PC] = value_orig;
+                            }
+                        }
+                        JumpMode::NotZero => {
+                            if !self.get_flag(Flag::Zero) {
+                                println!("JPC R{}", orig);
+                                let value_orig = self.registers[orig as usize];
+                                self.registers[PC] = value_orig;
+                            }
+                        }
+                        JumpMode::Negative => {
+                            if self.get_flag(Flag::Negative) {
+                                println!("JPC R{}", orig);
+                                let value_orig = self.registers[orig as usize];
+                                self.registers[PC] = value_orig;
+                            }
+                        }
+                        JumpMode::NotNegative => {
+                            if !self.get_flag(Flag::Negative) {
+                                println!("JPC R{}", orig);
+                                let value_orig = self.registers[orig as usize];
+                                self.registers[PC] = value_orig;
+                            }
+                        }
+                        JumpMode::Overflow => {
+                            if self.get_flag(Flag::Overflow) {
+                                println!("JPC R{}", orig);
+                                let value_orig = self.registers[orig as usize];
+                                self.registers[PC] = value_orig;
+                            }
+                        }
+                        JumpMode::NotOverflow => {
+                            if !self.get_flag(Flag::Overflow) {
+                                println!("JPC R{}", orig);
+                                let value_orig = self.registers[orig as usize];
+                                self.registers[PC] = value_orig;
+                            }
+                        }
+                        _ => unreachable!(),
+                    },
+                    1 => match jpm_mode {
+                        JumpMode::Zero => {
+                            if self.get_flag(Flag::Zero) {
+                                println!("JPC {}", literal_u16);
+                                self.registers[PC] = literal_u16;
+                            }
+                        }
+                        JumpMode::NotZero => {
+                            if !self.get_flag(Flag::Zero) {
+                                println!("JPC {}", literal_u16);
+                                self.registers[PC] = literal_u16;
+                            }
+                        }
+                        JumpMode::Negative => {
+                            if self.get_flag(Flag::Negative) {
+                                println!("JPC {}", literal_u16);
+                                self.registers[PC] = literal_u16;
+                            }
+                        }
+                        JumpMode::NotNegative => {
+                            if !self.get_flag(Flag::Negative) {
+                                println!("JPC {}", literal_u16);
+                                self.registers[PC] = literal_u16;
+                            }
+                        }
+                        JumpMode::Overflow => {
+                            if self.get_flag(Flag::Overflow) {
+                                println!("JPC {}", literal_u16);
+                                self.registers[PC] = literal_u16;
+                            }
+                        }
+                        JumpMode::NotOverflow => {
+                            if !self.get_flag(Flag::Overflow) {
+                                println!("JPC {}", literal_u16);
+                                self.registers[PC] = literal_u16;
+                            }
+                        }
+                        _ => unreachable!(),
+                    },
+                    _ => unreachable!(),
+                }
+            }
+            Opcode::JSB => {
+                self.push_u16(mem, self.registers[PC])
+                    .expect("Erro no push");
+                match mode {
+                    0 => {
+                        println!("JMP R{}", dest);
+                        let value_dest = self.registers[dest as usize];
+                        self.registers[PC] = value_dest;
+                    }
+                    1 => {
+                        self.registers[PC] = literal_u16;
+                    }
+                    _ => unreachable!(),
+                }
+            }
+            Opcode::RSB => {
+                self.registers[PC] = self.pull_u16(mem);
+            }
+            Opcode::CLI => {
+                self.set_flag(Flag::InterruptEnabled, false);
+            }
+            Opcode::SEI => {
+                self.set_flag(Flag::InterruptEnabled, true);
+            }
+            Opcode::RSI => {
+                self.registers[PC] = self.pull_u16(mem);
+                self.flags = self.pull_u16(mem);
+            }
             _ => {
                 panic!("Unimplemented opcode: {:?}", opcode);
             }
         }
-        // self.print_state(mem);
+
+        if self.get_flag(Flag::InterruptPending) && self.get_flag(Flag::InterruptEnabled) {
+            self.set_flag(Flag::InterruptEnabled, false);
+            self.set_flag(Flag::InterruptPending, false);
+            self.push_u16(mem, self.flags);
+            self.push_u16(mem, self.registers[PC]);
+            self.registers[PC] = mem.read_u16(INTERRUPT_ROUTINE_VECTOR)
+        }
+
+        // self._print_state(mem);
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::memory::Memory;
-
+    use crate::memory::{Memory, RAM_BASE};
     #[test]
     fn test_reset() {
         let mut machine = Machine::new();
@@ -1162,6 +1294,7 @@ mod tests {
         machine.step(&mut mem);
         assert_eq!(machine.registers[1], 0x0064);
     }
+
     #[test]
     fn test_div() {
         let mut machine = Machine::new();
@@ -1237,5 +1370,147 @@ mod tests {
         machine.step(&mut mem);
         assert_eq!(machine.get_flag(Flag::Zero), true);
         assert_eq!(machine.registers[0], 0x0000);
+    }
+
+    #[test]
+    fn test_and() {
+        let mut machine = Machine::new();
+        let mut mem = Memory::new();
+
+        machine.registers[PC] = ROM_BASE;
+        mem.load_rom(&[0b0001_0001, 0, 0x0A, 0]); // MOV R0, 10
+        machine.step(&mut mem);
+
+        machine.registers[PC] = ROM_BASE;
+        mem.load_rom(&[0b0001_0001, 1, 0x0A, 0]); // MOV R1, 10
+        machine.step(&mut mem);
+
+        machine.registers[PC] = ROM_BASE;
+        mem.load_rom(&[0b0110_0000, 0b0001_0000]); // AND R1, R0
+        machine.step(&mut mem);
+        assert_eq!(machine.registers[1], 0x000A);
+    }
+
+    #[test]
+    fn test_or() {
+        let mut machine = Machine::new();
+        let mut mem = Memory::new();
+
+        machine.registers[PC] = ROM_BASE;
+        mem.load_rom(&[0b0001_0001, 0, 0x0A, 0]); // MOV R0, 10
+        machine.step(&mut mem);
+
+        machine.registers[PC] = ROM_BASE;
+        mem.load_rom(&[0b0001_0001, 1, 0x0A, 0]); // MOV R1,
+        machine.step(&mut mem);
+
+        machine.registers[PC] = ROM_BASE;
+        mem.load_rom(&[0b0110_1000, 0b0001_0000]); // OR R1, R0
+        machine.step(&mut mem);
+        assert_eq!(machine.registers[1], 0x000A);
+    }
+
+    #[test]
+    fn test_xor() {
+        let mut machine = Machine::new();
+        let mut mem = Memory::new();
+
+        machine.registers[PC] = ROM_BASE;
+        mem.load_rom(&[0b0001_0001, 0, 0x0A, 0]); // MOV R0, 10
+        machine.step(&mut mem);
+
+        machine.registers[PC] = ROM_BASE;
+        mem.load_rom(&[0b0001_0001, 1, 0x0A, 0]); // MOV R1, 10
+        machine.step(&mut mem);
+
+        machine.registers[PC] = ROM_BASE;
+        mem.load_rom(&[0b0111_0000, 0b0001_0000]); // XOR R1, R0
+        machine.step(&mut mem);
+        assert_eq!(machine.registers[1], 0x0000);
+    }
+
+    #[test]
+    fn test_not() {
+        let mut machine = Machine::new();
+        let mut mem = Memory::new();
+
+        machine.registers[PC] = ROM_BASE;
+        mem.load_rom(&[0b0001_0001, 0, 0x0A, 0]); // MOV R0, 10
+        machine.step(&mut mem);
+
+        machine.registers[PC] = ROM_BASE;
+        mem.load_rom(&[0b0111_1000, 0]); // NOT R0
+        machine.step(&mut mem);
+        assert_eq!(machine.registers[0], 0xFFF6);
+    }
+
+    #[test]
+    fn test_shl() {
+        let mut machine = Machine::new();
+        let mut mem = Memory::new();
+
+        machine.registers[PC] = ROM_BASE;
+        mem.load_rom(&[0b0001_0001, 0, 0x02, 0]); // MOV R0, 2
+        machine.step(&mut mem);
+
+        machine.registers[PC] = ROM_BASE;
+        mem.load_rom(&[0b0001_0001, 1, 0x0A, 0]); // MOV R1, 10
+        machine.step(&mut mem);
+
+        machine.registers[PC] = ROM_BASE;
+        mem.load_rom(&[0b1000_0000, 0b0001_0000]); // SHL R1, R0
+        machine.step(&mut mem);
+        assert_eq!(machine.registers[1], 0x0028);
+    }
+
+    #[test]
+    fn test_shr() {
+        let mut machine = Machine::new();
+        let mut mem = Memory::new();
+
+        machine.registers[PC] = ROM_BASE;
+        mem.load_rom(&[0b0001_0001, 0, 0x02, 0]); // MOV R0, 2
+        machine.step(&mut mem);
+
+        machine.registers[PC] = ROM_BASE;
+        mem.load_rom(&[0b0001_0001, 1, 0x0A, 0]); // MOV R1, 10
+        machine.step(&mut mem);
+
+        machine.registers[PC] = ROM_BASE;
+        mem.load_rom(&[0b1000_1000, 0b0001_0000]); // SHR R1, R0
+        machine.step(&mut mem);
+        assert_eq!(machine.registers[1], 0x0002);
+    }
+
+    #[test]
+    fn test_cmp() {
+        let mut machine = Machine::new();
+        let mut mem = Memory::new();
+
+        machine.registers[PC] = ROM_BASE;
+        mem.load_rom(&[0b0001_0001, 0, 0x0A, 0]); // MOV R0, 10
+        machine.step(&mut mem);
+
+        machine.registers[PC] = ROM_BASE;
+        mem.load_rom(&[0b0001_0001, 1, 0x0A, 0]); // MOV R1, 10
+        machine.step(&mut mem);
+
+        machine.registers[PC] = ROM_BASE;
+        mem.load_rom(&[0b1001_0000, 0b0001_0000]); // CMP R1, R0
+        machine.step(&mut mem);
+        assert_eq!(machine.get_flag(Flag::Zero), true);
+        assert_eq!(machine.get_flag(Flag::Negative), false);
+        assert_eq!(machine.get_flag(Flag::Overflow), false);
+
+        machine.registers[PC] = ROM_BASE;
+        mem.load_rom(&[0b0001_0001, 0, 0x0E, 0]); // MOV R0, 14
+        machine.step(&mut mem);
+
+        machine.registers[PC] = ROM_BASE;
+        mem.load_rom(&[0b1001_0000, 0b0001_0000]); // CMP R1, R0
+        machine.step(&mut mem);
+        assert_eq!(machine.get_flag(Flag::Zero), false);
+        assert_eq!(machine.get_flag(Flag::Negative), true);
+        assert_eq!(machine.get_flag(Flag::Overflow), true);
     }
 }
