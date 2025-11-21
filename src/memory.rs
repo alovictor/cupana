@@ -1,3 +1,5 @@
+use std::{fmt, ops::Range};
+
 pub const ROM_SIZE: usize = 0x8000;
 pub const RAM_SIZE: usize = 0x6000;
 pub const STACK_SIZE: usize = 0x1000;
@@ -18,7 +20,7 @@ pub struct Memory {
     rom: [u8; ROM_SIZE],
     ram: [u8; RAM_SIZE],
     stack: [u8; STACK_SIZE],
-    device: [u8; DEVICE_SIZE]
+    device: [u8; DEVICE_SIZE],
 }
 
 impl Memory {
@@ -27,7 +29,7 @@ impl Memory {
             rom: [0; ROM_SIZE],
             ram: [0; RAM_SIZE],
             stack: [0; STACK_SIZE],
-            device: [0; DEVICE_SIZE]
+            device: [0; DEVICE_SIZE],
         }
     }
 
@@ -40,16 +42,16 @@ impl Memory {
             ROM_BASE..=ROM_END => self.rom[(address - ROM_BASE) as usize],
             RAM_BASE..=RAM_END => self.ram[(address - RAM_BASE) as usize],
             STACK_BASE..=STACK_END => self.stack[(address - STACK_BASE) as usize],
-            DEVICE_BASE..=DEVICE_END => self.device[(address - DEVICE_BASE) as usize]
+            DEVICE_BASE..=DEVICE_END => self.device[(address - DEVICE_BASE) as usize],
         }
     }
-    
+
     pub fn write_u8(&mut self, address: u16, value: u8) {
         match address {
             ROM_BASE..=ROM_END => panic!("Cannot write to ROM address: {}", address),
             RAM_BASE..=RAM_END => self.ram[(address - RAM_BASE) as usize] = value,
             STACK_BASE..=STACK_END => self.stack[(address - STACK_BASE) as usize] = value,
-            DEVICE_BASE..=DEVICE_END => self.device[(address - DEVICE_BASE) as usize] = value
+            DEVICE_BASE..=DEVICE_END => self.device[(address - DEVICE_BASE) as usize] = value,
         }
     }
 
@@ -58,10 +60,31 @@ impl Memory {
         let high = self.read_u8(address + 1) as u16;
         (high << 8) | low
     }
-    
+
     pub fn write_u16(&mut self, address: u16, value: u16) {
         self.write_u8(address, value as u8);
         self.write_u8(address + 1, (value >> 8) as u8);
+    }
+    fn print_memory(&self, range: Range<u16>) {
+        let cols = 8;
+        for idx in range.step_by(cols) {
+            print!("  {:04X}: ", idx);
+            for i in 0..cols as u16 {
+                let value = self.read_u8(idx + i);
+                print!("{:02X} ", value);
+            }
+            println!();
+        }
+    }
+}
+
+impl fmt::Display for Memory {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        writeln!(f, "Stack:")?;
+        self.print_memory(STACK_BASE..STACK_BASE + 32);
+        writeln!(f, "ROM:")?;
+        self.print_memory(ROM_BASE..ROM_BASE + 32);
+        Ok(())
     }
 }
 
