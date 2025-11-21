@@ -101,12 +101,10 @@ As instruções Aritméticas e Lógicas sempre retornam o resultado no primeiro 
 | ------ | ------------ |
 | `0x00` | Zero         |
 | `0x01` | Not Zero     |
-| `0x02` | Carry        |
-| `0x03` | Not Carry    |
-| `0x04` | Negative     |
-| `0x05` | Not Negative |
-| `0x06` | Overflow     |
-| `0x07` | Not Overflow |
+| `0x02` | Negative     |
+| `0x03` | Not Negative |
+| `0x04` | Overflow     |
+| `0x05` | Not Overflow |
 
 #### Instruções disponíveis e seus modos
 
@@ -173,11 +171,11 @@ As instruções Aritméticas e Lógicas sempre retornam o resultado no primeiro 
 | CMP    | 0   | 0   | 1   | 0b1001_0001 | Reg   | Lit   | 32 bits |
 | CMP    | 1   | 0   | 0   | 0b1001_0100 | Reg   | Reg   | 16 bits |
 | CMP    | 1   | 0   | 1   | 0b1001_0101 | Reg   | Lit   | 24 bits |
-| JMP    | 0   | 0   | 0   | 0b1001_1000 | Reg   | -     | 16 bits |
+| JMP    | 0   | 0   | 0   | 0b1001_1000 | Reg\* | -     | 16 bits |
 | JMP    | 0   | 0   | 1   | 0b1001_1001 | Lit   | -     | 24 bits |
 | JPC    | 0   | 0   | 0   | 0b1010_0000 | Mode  | Reg   | 16 bits |
 | JPC    | 0   | 0   | 1   | 0b1010_0001 | Mode  | Lit   | 32 bits |
-| JSB    | 0   | 0   | 0   | 0b1010_1000 | Reg   | -     | 24 bits |
+| JSB    | 0   | 0   | 0   | 0b1010_1000 | Reg\* | -     | 24 bits |
 | JSB    | 0   | 0   | 1   | 0b1010_1001 | Lit   | -     | 24 bits |
 | RSB    | 0   | 0   | 0   | 0b1011_1000 | -     | -     | 8 bits  |
 | CLI    | 0   | 0   | 0   | 0b1100_0000 | -     | -     | 8 bits  |

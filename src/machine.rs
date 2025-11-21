@@ -69,11 +69,35 @@ impl From<u8> for Opcode {
     }
 }
 
+enum JumpMode {
+    Zero,
+    NotZero,
+    Negative,
+    NotNegative,
+    Overflow,
+    NotOverflow,
+    None,
+}
+
+impl From<u8> for JumpMode {
+    fn from(value: u8) -> Self {
+        match value {
+            0 => JumpMode::Zero,
+            1 => JumpMode::NotZero,
+            2 => JumpMode::Negative,
+            3 => JumpMode::NotNegative,
+            4 => JumpMode::Overflow,
+            5 => JumpMode::NotOverflow,
+            _ => JumpMode::None,
+        }
+    }
+}
+
 pub enum Flag {
     Zero = 0x0001,
     Negative = 0x0002,
     Overflow = 0x0004,
-    InterruptDisabled = 0x0008,
+    InterruptEnabled = 0x0008,
     InterruptPending = 0x0010,
     Halt = 0x0080,
 }
@@ -234,6 +258,7 @@ impl Machine {
                 _ => unreachable!(),
             }
         }
+
         match opcode {
             Opcode::NOP => {
                 println!("NOP");
@@ -906,16 +931,105 @@ impl Machine {
             },
             Opcode::JMP => match mode {
                 0 => {
-                    println!("JMP R{}", dest);
-                    let value_dest = self.registers[dest as usize];
-                    self.registers[PC] = value_dest;
+                    println!("JMP R{}", orig);
+                    let value_orig = self.registers[orig as usize];
+                    self.registers[PC] = value_orig;
                 }
                 1 => {
                     self.registers[PC] = literal_u16;
                 }
                 _ => unreachable!(),
             },
-            Opcode::JPC => {}
+            Opcode::JPC => {
+                let jpm_mode = JumpMode::from(dest);
+                match mode {
+                    0 => match jpm_mode {
+                        JumpMode::Zero => {
+                            if self.get_flag(Flag::Zero) {
+                                println!("JPC R{}", orig);
+                                let value_orig = self.registers[orig as usize];
+                                self.registers[PC] = value_orig;
+                            }
+                        }
+                        JumpMode::NotZero => {
+                            if !self.get_flag(Flag::Zero) {
+                                println!("JPC R{}", orig);
+                                let value_orig = self.registers[orig as usize];
+                                self.registers[PC] = value_orig;
+                            }
+                        }
+                        JumpMode::Negative => {
+                            if self.get_flag(Flag::Negative) {
+                                println!("JPC R{}", orig);
+                                let value_orig = self.registers[orig as usize];
+                                self.registers[PC] = value_orig;
+                            }
+                        }
+                        JumpMode::NotNegative => {
+                            if !self.get_flag(Flag::Negative) {
+                                println!("JPC R{}", orig);
+                                let value_orig = self.registers[orig as usize];
+                                self.registers[PC] = value_orig;
+                            }
+                        }
+                        JumpMode::Overflow => {
+                            if self.get_flag(Flag::Overflow) {
+                                println!("JPC R{}", orig);
+                                let value_orig = self.registers[orig as usize];
+                                self.registers[PC] = value_orig;
+                            }
+                        }
+                        JumpMode::NotOverflow => {
+                            if !self.get_flag(Flag::Overflow) {
+                                println!("JPC R{}", orig);
+                                let value_orig = self.registers[orig as usize];
+                                self.registers[PC] = value_orig;
+                            }
+                        }
+                        _ => unreachable!(),
+                    },
+                    1 => match jpm_mode {
+                        JumpMode::Zero => {
+                            if self.get_flag(Flag::Zero) {
+                                println!("JPC {}", literal_u16);
+                                self.registers[PC] = literal_u16;
+                            }
+                        }
+                        JumpMode::NotZero => {
+                            if !self.get_flag(Flag::Zero) {
+                                println!("JPC {}", literal_u16);
+                                self.registers[PC] = literal_u16;
+                            }
+                        }
+                        JumpMode::Negative => {
+                            if self.get_flag(Flag::Negative) {
+                                println!("JPC {}", literal_u16);
+                                self.registers[PC] = literal_u16;
+                            }
+                        }
+                        JumpMode::NotNegative => {
+                            if !self.get_flag(Flag::Negative) {
+                                println!("JPC {}", literal_u16);
+                                self.registers[PC] = literal_u16;
+                            }
+                        }
+                        JumpMode::Overflow => {
+                            if self.get_flag(Flag::Overflow) {
+                                println!("JPC {}", literal_u16);
+                                self.registers[PC] = literal_u16;
+                            }
+                        }
+                        JumpMode::NotOverflow => {
+                            if !self.get_flag(Flag::Overflow) {
+                                println!("JPC {}", literal_u16);
+                                self.registers[PC] = literal_u16;
+                            }
+                        }
+                        _ => unreachable!(),
+                    },
+                    _ => unreachable!(),
+                }
+            }
             Opcode::JSB => {
                 self.push_u16(mem, self.registers[PC]);
                 match mode {
@@ -933,9 +1047,16 @@ impl Machine {
             Opcode::RSB => {
                 self.registers[PC] = self.pull_u16(mem);
             }
-            Opcode::CLI => {}
-            Opcode::SEI => {}
-            Opcode::RSI => {}
+            Opcode::CLI => {
+                self.set_flag(Flag::InterruptEnabled, false);
+            }
+            Opcode::SEI => {
+                self.set_flag(Flag::InterruptEnabled, true);
+            }
+            Opcode::RSI => {
+                self.registers[PC] = self.pull_u16(mem);
+                self.flags = self.pull_u16(mem);
+            }
             _ => {
                 panic!("Unimplemented opcode: {:?}", opcode);
             }
