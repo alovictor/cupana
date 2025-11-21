@@ -1,4 +1,4 @@
-use crate::memory::{Memory, ROM_BASE, STACK_BASE};
+use crate::memory::{Memory, STACK_BASE};
 use std::ops::{BitAnd, BitOr, BitXor, Shl, Shr};
 
 const PC: usize = 14;
@@ -116,9 +116,9 @@ pub struct Machine {
 }
 
 impl Machine {
-    pub fn new() -> Self {
+    pub fn new(mem: &Memory) -> Self {
         let mut registers = [0; 16];
-        registers[PC] = ROM_BASE;
+        registers[PC] = mem.read_u16(RESET_VECTOR);
         registers[SP] = STACK_BASE;
 
         Machine {
@@ -134,6 +134,10 @@ impl Machine {
 
     pub fn halted(&self) -> bool {
         self.get_flag(Flag::Halt)
+    }
+
+    pub fn reset_pc(&mut self, mem: &Memory) {
+        self.registers[PC] = mem.read_u16(RESET_VECTOR);
     }
 
     fn get_flag(&self, flag: Flag) -> bool {
@@ -1083,7 +1087,8 @@ mod tests {
     use crate::memory::{Memory, RAM_BASE};
     #[test]
     fn test_reset() {
-        let mut machine = Machine::new();
+        let mem = Memory::new();
+        let mut machine = Machine::new(&mem);
         machine.registers[0] = 0x1234;
         machine.flags = 0x56;
         machine.reset();
@@ -1093,8 +1098,8 @@ mod tests {
 
     #[test]
     fn test_mov() {
-        let mut machine = Machine::new();
         let mut mem = Memory::new();
+        let mut machine = Machine::new(&mem);
 
         mem.load_rom(&[
             0b0001_0001,
@@ -1105,22 +1110,22 @@ mod tests {
         machine.step(&mut mem);
         assert_eq!(machine.registers[0], RAM_BASE);
 
-        machine.registers[PC] = ROM_BASE;
+        machine.reset_pc(&mem);
         mem.load_rom(&[0b0001_0001, 0b0000_0001, 0x00, 0x01]); // MOV R1, 256
         machine.step(&mut mem);
         assert_eq!(machine.registers[1], 0x0100);
 
-        machine.registers[PC] = ROM_BASE;
+        machine.reset_pc(&mem);
         mem.load_rom(&[0b0001_0010, 0b0000_0001]); // MOV R0*, R1
         machine.step(&mut mem);
         assert_eq!(mem.read_u16(RAM_BASE), 0x0100);
 
-        machine.registers[PC] = ROM_BASE;
+        machine.reset_pc(&mem);
         mem.load_rom(&[0b0001_0011, 0b0010_0000]); // MOV R2, R0*
         machine.step(&mut mem);
         assert_eq!(machine.registers[2], 0x0100);
 
-        machine.registers[PC] = ROM_BASE;
+        machine.reset_pc(&mem);
         mem.load_rom(&[0b0001_0000, 0b0011_0010]); // MOV R2, R1
         machine.step(&mut mem);
         assert_eq!(machine.registers[3], 0x0100);
@@ -1128,8 +1133,8 @@ mod tests {
 
     #[test]
     fn test_movb() {
-        let mut machine = Machine::new();
         let mut mem = Memory::new();
+        let mut machine = Machine::new(&mem);
 
         mem.load_rom(&[
             0b0001_0001,
@@ -1140,17 +1145,17 @@ mod tests {
         machine.step(&mut mem);
         assert_eq!(machine.registers[0], RAM_BASE);
 
-        machine.registers[PC] = ROM_BASE;
+        machine.reset_pc(&mem);
         mem.load_rom(&[0b0001_0101, 0b0000_0001, 0x0A]); // MOV R1, 10
         machine.step(&mut mem);
         assert_eq!(machine.registers[1], 0x0A);
 
-        machine.registers[PC] = ROM_BASE;
+        machine.reset_pc(&mem);
         mem.load_rom(&[0b0001_0110, 0b0000_0001]); // MOV R0*, R1
         machine.step(&mut mem);
         assert_eq!(mem.read_u16(RAM_BASE), 0x0A);
 
-        machine.registers[PC] = ROM_BASE;
+        machine.reset_pc(&mem);
         mem.load_rom(&[0b0001_0000, 0b0010_0001]); // MOV R2, R1
         machine.step(&mut mem);
         assert_eq!(machine.registers[2], 0x0A);
@@ -1158,20 +1163,20 @@ mod tests {
 
     #[test]
     fn test_stack_mov() {
-        let mut machine = Machine::new();
         let mut mem = Memory::new();
+        let mut machine = Machine::new(&mem);
 
-        machine.registers[PC] = ROM_BASE;
+        machine.reset_pc(&mem);
         mem.load_rom(&[0b0001_0001, 0, 0x0A, 0]); // MOV R0, 10
         machine.step(&mut mem);
         assert_eq!(machine.registers[0], 0x000A);
 
-        machine.registers[PC] = ROM_BASE;
+        machine.reset_pc(&mem);
         mem.load_rom(&[0b0001_1000, 0]); // PHR R0
         machine.step(&mut mem);
         assert_eq!(mem.read_u16(machine.registers[SP] - 2), 0x000A);
 
-        machine.registers[PC] = ROM_BASE;
+        machine.reset_pc(&mem);
         mem.load_rom(&[0b0010_0000, 1]); // PLR R1
         machine.step(&mut mem);
         assert_eq!(machine.registers[1], 0x000A);
@@ -1179,38 +1184,38 @@ mod tests {
 
     #[test]
     fn test_add() {
-        let mut machine = Machine::new();
         let mut mem = Memory::new();
+        let mut machine = Machine::new(&mem);
 
-        machine.registers[PC] = ROM_BASE;
+        machine.reset_pc(&mem);
         mem.load_rom(&[0b0001_0001, 0, 0x0A, 0]); // MOV R0, 10
         machine.step(&mut mem);
         assert_eq!(machine.registers[0], 0x000A);
 
-        machine.registers[PC] = ROM_BASE;
+        machine.reset_pc(&mem);
         mem.load_rom(&[0b0001_0001, 1, 0x10, 0]); // MOV R0, 16
         machine.step(&mut mem);
         assert_eq!(machine.registers[1], 0x0010);
 
-        machine.registers[PC] = ROM_BASE;
+        machine.reset_pc(&mem);
         mem.load_rom(&[0b0010_1000, 0b0001_0000]); // ADD R1, R0
         machine.step(&mut mem);
         assert_eq!(machine.registers[1], 0x001A);
 
-        machine.registers[PC] = ROM_BASE;
+        machine.reset_pc(&mem);
         mem.load_rom(&[0b0010_1001, 0, 0x0A, 0]); // ADD R0, 16
         machine.step(&mut mem);
         assert_eq!(machine.registers[0], 0x0014);
 
-        machine.registers[PC] = ROM_BASE;
+        machine.reset_pc(&mem);
         mem.load_rom(&[0b0001_0001, 0, 0xFF, 0xFF]); // MOV R0, 10
         machine.step(&mut mem);
 
-        machine.registers[PC] = ROM_BASE;
+        machine.reset_pc(&mem);
         mem.load_rom(&[0b0001_0001, 1, 0x01, 0]); // MOV R1, 10
         machine.step(&mut mem);
 
-        machine.registers[PC] = ROM_BASE;
+        machine.reset_pc(&mem);
         mem.load_rom(&[0b0010_1000, 0b0001_0000]); // ADD R1, R0
         machine.step(&mut mem);
         assert_eq!(machine.get_flag(Flag::Zero), true);
@@ -1221,25 +1226,25 @@ mod tests {
 
     #[test]
     fn test_addb() {
-        let mut machine = Machine::new();
         let mut mem = Memory::new();
+        let mut machine = Machine::new(&mem);
 
-        machine.registers[PC] = ROM_BASE;
+        machine.reset_pc(&mem);
         mem.load_rom(&[0b0001_0101, 0, 0x0A]); // MOVB R0, 10
         machine.step(&mut mem);
         assert_eq!(machine.registers[0], 0x0A);
 
-        machine.registers[PC] = ROM_BASE;
+        machine.reset_pc(&mem);
         mem.load_rom(&[0b0001_0101, 1, 0x10]); // MOVB R0, 16
         machine.step(&mut mem);
         assert_eq!(machine.registers[1], 0x10);
 
-        machine.registers[PC] = ROM_BASE;
+        machine.reset_pc(&mem);
         mem.load_rom(&[0b0010_1100, 0b0001_0000]); // ADDB R1, R0
         machine.step(&mut mem);
         assert_eq!(machine.registers[1], 0x1A);
 
-        machine.registers[PC] = ROM_BASE;
+        machine.reset_pc(&mem);
         mem.load_rom(&[0b0010_1101, 0, 0x0A]); // ADDB R0, 16
         machine.step(&mut mem);
         assert_eq!(machine.registers[0], 0x14);
@@ -1247,26 +1252,26 @@ mod tests {
 
     #[test]
     fn test_sub() {
-        let mut machine = Machine::new();
         let mut mem = Memory::new();
+        let mut machine = Machine::new(&mem);
 
-        machine.registers[PC] = ROM_BASE;
+        machine.reset_pc(&mem);
         mem.load_rom(&[0b0001_0001, 0, 0x0A, 0]); // MOV R0, 10
         machine.step(&mut mem);
         assert_eq!(machine.registers[0], 0x000A);
 
-        machine.registers[PC] = ROM_BASE;
+        machine.reset_pc(&mem);
         mem.load_rom(&[0b0001_0001, 1, 0x0A, 0]); // MOV R1, 10
         machine.step(&mut mem);
         assert_eq!(machine.registers[1], 0x000A);
 
-        machine.registers[PC] = ROM_BASE;
+        machine.reset_pc(&mem);
         mem.load_rom(&[0b0011_0000, 0b0001_0000]); // SUB R1, R0
         machine.step(&mut mem);
         assert_eq!(machine.get_flag(Flag::Zero), true);
         assert_eq!(machine.registers[1], 0x0000);
 
-        machine.registers[PC] = ROM_BASE;
+        machine.reset_pc(&mem);
         mem.load_rom(&[0b0011_0000, 0b0001_0000]); // SUB R1, R0
         machine.step(&mut mem);
         assert_eq!(machine.get_flag(Flag::Zero), false);
@@ -1276,20 +1281,20 @@ mod tests {
 
     #[test]
     fn test_mul() {
-        let mut machine = Machine::new();
         let mut mem = Memory::new();
+        let mut machine = Machine::new(&mem);
 
-        machine.registers[PC] = ROM_BASE;
+        machine.reset_pc(&mem);
         mem.load_rom(&[0b0001_0001, 0, 0x0A, 0]); // MOV R0, 10
         machine.step(&mut mem);
         assert_eq!(machine.registers[0], 0x000A);
 
-        machine.registers[PC] = ROM_BASE;
+        machine.reset_pc(&mem);
         mem.load_rom(&[0b0001_0001, 1, 0x0A, 0]); // MOV R1, 10
         machine.step(&mut mem);
         assert_eq!(machine.registers[1], 0x000A);
 
-        machine.registers[PC] = ROM_BASE;
+        machine.reset_pc(&mem);
         mem.load_rom(&[0b0011_1000, 0b0001_0000]); // MUL R1, R0
         machine.step(&mut mem);
         assert_eq!(machine.registers[1], 0x0064);
@@ -1297,18 +1302,18 @@ mod tests {
 
     #[test]
     fn test_div() {
-        let mut machine = Machine::new();
         let mut mem = Memory::new();
+        let mut machine = Machine::new(&mem);
 
-        machine.registers[PC] = ROM_BASE;
+        machine.reset_pc(&mem);
         mem.load_rom(&[0b0001_0001, 0, 0x02, 0]); // MOV R0, 2
         machine.step(&mut mem);
 
-        machine.registers[PC] = ROM_BASE;
+        machine.reset_pc(&mem);
         mem.load_rom(&[0b0001_0001, 1, 0x0A, 0]); // MOV R1, 10
         machine.step(&mut mem);
 
-        machine.registers[PC] = ROM_BASE;
+        machine.reset_pc(&mem);
         mem.load_rom(&[0b0100_0000, 0b0001_0000]); // DIV R1, R0
         machine.step(&mut mem);
         assert_eq!(machine.registers[1], 0x0005);
@@ -1316,27 +1321,27 @@ mod tests {
 
     #[test]
     fn test_mod() {
-        let mut machine = Machine::new();
         let mut mem = Memory::new();
+        let mut machine = Machine::new(&mem);
 
-        machine.registers[PC] = ROM_BASE;
+        machine.reset_pc(&mem);
         mem.load_rom(&[0b0001_0001, 0, 0x02, 0]); // MOV R0, 10
         machine.step(&mut mem);
 
-        machine.registers[PC] = ROM_BASE;
+        machine.reset_pc(&mem);
         mem.load_rom(&[0b0001_0001, 1, 0x09, 0]); // MOV R1, 10
         machine.step(&mut mem);
 
-        machine.registers[PC] = ROM_BASE;
+        machine.reset_pc(&mem);
         mem.load_rom(&[0b0100_1000, 0b0001_0000]); // MOD R1, R0
         machine.step(&mut mem);
         assert_eq!(machine.registers[1], 0x0001);
 
-        machine.registers[PC] = ROM_BASE;
+        machine.reset_pc(&mem);
         mem.load_rom(&[0b0001_0001, 1, 0x0A, 0]); // MOV R1, 10
         machine.step(&mut mem);
 
-        machine.registers[PC] = ROM_BASE;
+        machine.reset_pc(&mem);
         mem.load_rom(&[0b0100_1000, 0b0001_0000]); // MOD R1, R0
         machine.step(&mut mem);
         assert_eq!(machine.get_flag(Flag::Zero), true);
@@ -1345,27 +1350,27 @@ mod tests {
 
     #[test]
     fn test_inc_dec() {
-        let mut machine = Machine::new();
         let mut mem = Memory::new();
+        let mut machine = Machine::new(&mem);
 
-        machine.registers[PC] = ROM_BASE;
+        machine.reset_pc(&mem);
         mem.load_rom(&[0b0001_0001, 0, 0x02, 0]); // MOV R0, 2
         machine.step(&mut mem);
 
-        machine.registers[PC] = ROM_BASE;
+        machine.reset_pc(&mem);
         mem.load_rom(&[0b0101_0000, 0]); // INC R0
         machine.step(&mut mem);
         assert_eq!(machine.registers[0], 0x0003);
 
-        machine.registers[PC] = ROM_BASE;
+        machine.reset_pc(&mem);
         mem.load_rom(&[0b0101_1000, 0]); // DEC R0
         machine.step(&mut mem);
         assert_eq!(machine.registers[0], 0x0002);
 
-        machine.registers[PC] = ROM_BASE;
+        machine.reset_pc(&mem);
         mem.load_rom(&[0b0101_1000, 0]); // DEC R0
         machine.step(&mut mem);
-        machine.registers[PC] = ROM_BASE;
+        machine.reset_pc(&mem);
         mem.load_rom(&[0b0101_1000, 0]); // DEC R0
         machine.step(&mut mem);
         assert_eq!(machine.get_flag(Flag::Zero), true);
@@ -1374,18 +1379,18 @@ mod tests {
 
     #[test]
     fn test_and() {
-        let mut machine = Machine::new();
         let mut mem = Memory::new();
+        let mut machine = Machine::new(&mem);
 
-        machine.registers[PC] = ROM_BASE;
+        machine.reset_pc(&mem);
         mem.load_rom(&[0b0001_0001, 0, 0x0A, 0]); // MOV R0, 10
         machine.step(&mut mem);
 
-        machine.registers[PC] = ROM_BASE;
+        machine.reset_pc(&mem);
         mem.load_rom(&[0b0001_0001, 1, 0x0A, 0]); // MOV R1, 10
         machine.step(&mut mem);
 
-        machine.registers[PC] = ROM_BASE;
+        machine.reset_pc(&mem);
         mem.load_rom(&[0b0110_0000, 0b0001_0000]); // AND R1, R0
         machine.step(&mut mem);
         assert_eq!(machine.registers[1], 0x000A);
@@ -1393,18 +1398,18 @@ mod tests {
 
     #[test]
     fn test_or() {
-        let mut machine = Machine::new();
         let mut mem = Memory::new();
+        let mut machine = Machine::new(&mem);
 
-        machine.registers[PC] = ROM_BASE;
+        machine.reset_pc(&mem);
         mem.load_rom(&[0b0001_0001, 0, 0x0A, 0]); // MOV R0, 10
         machine.step(&mut mem);
 
-        machine.registers[PC] = ROM_BASE;
+        machine.reset_pc(&mem);
         mem.load_rom(&[0b0001_0001, 1, 0x0A, 0]); // MOV R1,
         machine.step(&mut mem);
 
-        machine.registers[PC] = ROM_BASE;
+        machine.reset_pc(&mem);
         mem.load_rom(&[0b0110_1000, 0b0001_0000]); // OR R1, R0
         machine.step(&mut mem);
         assert_eq!(machine.registers[1], 0x000A);
@@ -1412,18 +1417,18 @@ mod tests {
 
     #[test]
     fn test_xor() {
-        let mut machine = Machine::new();
         let mut mem = Memory::new();
+        let mut machine = Machine::new(&mem);
 
-        machine.registers[PC] = ROM_BASE;
+        machine.reset_pc(&mem);
         mem.load_rom(&[0b0001_0001, 0, 0x0A, 0]); // MOV R0, 10
         machine.step(&mut mem);
 
-        machine.registers[PC] = ROM_BASE;
+        machine.reset_pc(&mem);
         mem.load_rom(&[0b0001_0001, 1, 0x0A, 0]); // MOV R1, 10
         machine.step(&mut mem);
 
-        machine.registers[PC] = ROM_BASE;
+        machine.reset_pc(&mem);
         mem.load_rom(&[0b0111_0000, 0b0001_0000]); // XOR R1, R0
         machine.step(&mut mem);
         assert_eq!(machine.registers[1], 0x0000);
@@ -1431,14 +1436,14 @@ mod tests {
 
     #[test]
     fn test_not() {
-        let mut machine = Machine::new();
         let mut mem = Memory::new();
+        let mut machine = Machine::new(&mem);
 
-        machine.registers[PC] = ROM_BASE;
+        machine.reset_pc(&mem);
         mem.load_rom(&[0b0001_0001, 0, 0x0A, 0]); // MOV R0, 10
         machine.step(&mut mem);
 
-        machine.registers[PC] = ROM_BASE;
+        machine.reset_pc(&mem);
         mem.load_rom(&[0b0111_1000, 0]); // NOT R0
         machine.step(&mut mem);
         assert_eq!(machine.registers[0], 0xFFF6);
@@ -1446,18 +1451,18 @@ mod tests {
 
     #[test]
     fn test_shl() {
-        let mut machine = Machine::new();
         let mut mem = Memory::new();
+        let mut machine = Machine::new(&mem);
 
-        machine.registers[PC] = ROM_BASE;
+        machine.reset_pc(&mem);
         mem.load_rom(&[0b0001_0001, 0, 0x02, 0]); // MOV R0, 2
         machine.step(&mut mem);
 
-        machine.registers[PC] = ROM_BASE;
+        machine.reset_pc(&mem);
         mem.load_rom(&[0b0001_0001, 1, 0x0A, 0]); // MOV R1, 10
         machine.step(&mut mem);
 
-        machine.registers[PC] = ROM_BASE;
+        machine.reset_pc(&mem);
         mem.load_rom(&[0b1000_0000, 0b0001_0000]); // SHL R1, R0
         machine.step(&mut mem);
         assert_eq!(machine.registers[1], 0x0028);
@@ -1465,18 +1470,18 @@ mod tests {
 
     #[test]
     fn test_shr() {
-        let mut machine = Machine::new();
         let mut mem = Memory::new();
+        let mut machine = Machine::new(&mem);
 
-        machine.registers[PC] = ROM_BASE;
+        machine.reset_pc(&mem);
         mem.load_rom(&[0b0001_0001, 0, 0x02, 0]); // MOV R0, 2
         machine.step(&mut mem);
 
-        machine.registers[PC] = ROM_BASE;
+        machine.reset_pc(&mem);
         mem.load_rom(&[0b0001_0001, 1, 0x0A, 0]); // MOV R1, 10
         machine.step(&mut mem);
 
-        machine.registers[PC] = ROM_BASE;
+        machine.reset_pc(&mem);
         mem.load_rom(&[0b1000_1000, 0b0001_0000]); // SHR R1, R0
         machine.step(&mut mem);
         assert_eq!(machine.registers[1], 0x0002);
@@ -1484,29 +1489,29 @@ mod tests {
 
     #[test]
     fn test_cmp() {
-        let mut machine = Machine::new();
         let mut mem = Memory::new();
+        let mut machine = Machine::new(&mem);
 
-        machine.registers[PC] = ROM_BASE;
+        machine.reset_pc(&mem);
         mem.load_rom(&[0b0001_0001, 0, 0x0A, 0]); // MOV R0, 10
         machine.step(&mut mem);
 
-        machine.registers[PC] = ROM_BASE;
+        machine.reset_pc(&mem);
         mem.load_rom(&[0b0001_0001, 1, 0x0A, 0]); // MOV R1, 10
         machine.step(&mut mem);
 
-        machine.registers[PC] = ROM_BASE;
+        machine.reset_pc(&mem);
         mem.load_rom(&[0b1001_0000, 0b0001_0000]); // CMP R1, R0
         machine.step(&mut mem);
         assert_eq!(machine.get_flag(Flag::Zero), true);
         assert_eq!(machine.get_flag(Flag::Negative), false);
         assert_eq!(machine.get_flag(Flag::Overflow), false);
 
-        machine.registers[PC] = ROM_BASE;
+        machine.reset_pc(&mem);
         mem.load_rom(&[0b0001_0001, 0, 0x0E, 0]); // MOV R0, 14
         machine.step(&mut mem);
 
-        machine.registers[PC] = ROM_BASE;
+        machine.reset_pc(&mem);
         mem.load_rom(&[0b1001_0000, 0b0001_0000]); // CMP R1, R0
         machine.step(&mut mem);
         assert_eq!(machine.get_flag(Flag::Zero), false);

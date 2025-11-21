@@ -10,18 +10,18 @@
 
 A `cupana machine` é um processador de 16-bit LE com uma arquitetura simples. Ela possui os seguintes registradores:
 
-* **Registradores de Propósito Geral (16-bit):** `R0`, `R1`, `R2`, ... `R13`. São utilizados para manipulação geral de dados.
-* **Registradores Especiais (16-bit):**
-  * `R14` ou `PC` (Program Counter): Aponta para o endereço da próxima instrução a ser executada.
-  * `R15` ou `SP` (Stack Pointer): Aponta para o topo da pilha (stack).
-  * `FLAGS` (16-bit): Armazena o estado da CPU após operações:
-    * **Zero (0x0001)**: Definida se o resultado de uma operação for zero.
-    * **Carry (0x0002)**: Definida se uma operação gerou um "vai um" (carry).
-    * **Negative (0x0004)**: Definida se o resultado for negativo.
-    * **Overflow (0x0008)**: Definida se uma operação resultou em um overflow.
-    * **Interrupt Disabled (0x0010)**: Interrupções estão desabilitadas.
-    * **Interrupt Pending (0x0020)**: Há uma interrupção pendente.
-    * **Halt (0x0080):** Processador parou.
+- **Registradores de Propósito Geral (16-bit):** `R0`, `R1`, `R2`, ... `R13`. São utilizados para manipulação geral de dados.
+- **Registradores Especiais (16-bit):**
+  - `R14` ou `PC` (Program Counter): Aponta para o endereço da próxima instrução a ser executada.
+  - `R15` ou `SP` (Stack Pointer): Aponta para o topo da pilha (stack).
+  - `FLAGS` (16-bit): Armazena o estado da CPU após operações:
+    - **Zero (0x0001)**: Definida se o resultado de uma operação for zero.
+    - **Carry (0x0002)**: Definida se uma operação gerou um "vai um" (carry).
+    - **Negative (0x0004)**: Definida se o resultado for negativo.
+    - **Overflow (0x0008)**: Definida se uma operação resultou em um overflow.
+    - **Interrupt Disabled (0x0010)**: Interrupções estão desabilitadas.
+    - **Interrupt Pending (0x0020)**: Há uma interrupção pendente.
+    - **Halt (0x0080):** Processador parou.
 
 ### Mapa de memória
 
@@ -52,7 +52,7 @@ A sintaxe geral de uma linha de código é: `rótulo: INSTRUÇÃO operando1, ope
 
 Labels são referências a endereços na memória rom, que permite pular para pontos específicos do programa como funcões ou outros pontos arbitrários.
 
-``` casm
+```casm
 label:
 ```
 
@@ -60,40 +60,46 @@ label:
 
 Diretivas são comandos para o montador que não se traduzem diretamente em opcodes, mas controlam o processo de compilação.
 
-* **`.org`**: Define a "origem", ou seja, o endereço de memória inicial onde o código a seguir será colocado.
-  
+- **`.org`**: Define a "origem", ou seja, o endereço de memória inicial onde o código a seguir será colocado.
+
 ```casm
 .org 0x100 ; O código seguinte será montado a partir do endereço 256.
 ```
 
-* **`.include`**: Importa um arquivo casm.
-  
+- **`.include`**: Importa um arquivo casm.
+
 ```casm
 .include "nome_do_arquivo.casm"
 ```
 
-* **`.const`**: Define uma constante na memória.
+- **`.global`**: Informa ao linker quais simbolos importar em outro arquivo.
+
+```casm
+.global function:
+```
+
+- **`.const`**: Define uma constante na memória.
 
 ```casm
 nome: .const 30
 ```
 
-* **`.short`**: Aloca e inicializa uma ou mais palavras de 16-bit na memória. Pode ser usado para constantes ou strings.
+- **`.short`**: Aloca e inicializa uma ou mais palavras de 16-bit na memória. Pode ser usado para constantes ou strings.
 
 ```casm
 valor_config: .short 0xFF00
 mensagem:     .short "Ola!" ; Cria uma sequência de words, terminada em nulo.
 ```
 
-* **`.byte`**: Aloca e inicializa um ou mais bytes de 8-bit na memória.
+- **`.byte`**: Aloca e inicializa um ou mais bytes de 8-bit na memória.
 
 ```casm
 idade: .byte 30
 ```
 
-* **`.ascii`**: Aloca e inicializa sequência de caracteres em ascii
+- **`.ascii`**: Aloca e inicializa sequência de caracteres em ascii
 
-``` casm
+```casm
 nome: .ascii "João"
 ```
 
@@ -149,7 +155,7 @@ nome: .ascii "João"
 | 27  | `SHL`     | Desloca os bits para a esquerda (Shift Left).    | `reg_dest, reg_orig` / `reg_dest, literal` |
 | 28  | `SHLB`    | Desloca os bits para a esquerda (Shift Left).    | `reg_dest, reg_orig` / `reg_dest, literal` |
 | 29  | `SHR`     | Desloca os bits para a direita (Shift Right).    | `reg_dest, reg_orig` / `reg_dest, literal` |
-| 30  | `SHRB`     | Desloca os bits para a direita (Shift Right).    | `reg_dest, reg_orig` / `reg_dest, literal` |
+| 30  | `SHRB`    | Desloca os bits para a direita (Shift Right).    | `reg_dest, reg_orig` / `reg_dest, literal` |
 | 31  | `NOT`     | Negação bit a bit (Bitwise NOT) em 16-bit.       | `reg`                                      |
 | 32  | `NOTB`    | Negação bit a bit (Bitwise NOT) em 8-bit.        | `reg`                                      |
 
@@ -221,3 +227,4 @@ inicio:
 numero_a:   .short 15
 numero_b:   .short 27
 resultado:  .short 0 ; Espaço para armazenar o resultado
+```

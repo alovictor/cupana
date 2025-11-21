@@ -8,10 +8,10 @@ O sistema é feito por:
 | Memory          | Memória                 |
 | Screen Device   | Dispositivo de tela     |
 | Keyboard Device | Dispositivo de teclado  |
-| Mouse Device    | Dispositivo de mouse    |
-| Sound Device    | Dispositivo de som      |
 | File            | Dispositivo de arquivo  |
 | Datetime        | Dispositivo de datetime |
+| Mouse Device    | Dispositivo de mouse    |
+| Sound Device    | Dispositivo de som      |
 
 ## Cupana Machine
 
@@ -28,15 +28,13 @@ Memória de 64kb com o seguinte mapeamento:
 | STACK   | `0xE000` - `0xEFFF` | 4kb  |
 | Devices | `0xF000` - `0xFFFF` | 4kb  |
 
-## Console Device
+## Screen Device
 
 ## Keyboard Device
 
 ## File
 
 ## Datetime
-
-## Screen Device
 
 ## Mouse Device
 
