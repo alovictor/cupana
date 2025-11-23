@@ -65,6 +65,11 @@ impl Memory {
         self.write_u8(address, value as u8);
         self.write_u8(address + 1, (value >> 8) as u8);
     }
+
+    pub fn append(&mut self, id: usize, value: &[u8]) {
+        self.rom[id..value.len()].copy_from_slice(value);
+    }
+
     fn print_memory(&self, range: Range<u16>) {
         let cols = 8;
         for idx in range.step_by(cols) {

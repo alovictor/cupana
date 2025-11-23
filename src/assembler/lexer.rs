@@ -2,11 +2,12 @@ use regex::Regex;
 use std::fs::File;
 use std::io::{BufReader, Read};
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum Token {
-    Mnemonic(Opcode),
+    Mnemonic(MnemonicType),
     Register(RegisterType),
-    Literal(LiteralType),
+    Literal(u16),
+    LabelDef(String),
     Label(String),
     Directive(DirectiveType),
     Comment,
@@ -15,8 +16,8 @@ pub enum Token {
     None,
 }
 
-#[derive(Debug, PartialEq)]
-pub enum Opcode {
+#[derive(Debug, PartialEq, Clone)]
+pub enum MnemonicType {
     NOP,
     HLT,
     MOV,
@@ -66,115 +67,115 @@ pub enum Opcode {
     NONE,
 }
 
-impl Opcode {
+impl MnemonicType {
     pub fn to_byte(&self) -> u8 {
         match self {
-            Opcode::NOP => 0x00,
-            Opcode::HLT => 0x01,
-            Opcode::MOV => 0x02,
-            Opcode::MOVB => 0x02,
-            Opcode::PHR => 0x03,
-            Opcode::PHL => 0x04,
-            Opcode::ADD => 0x05,
-            Opcode::ADDB => 0x05,
-            Opcode::SUB => 0x06,
-            Opcode::SUBB => 0x06,
-            Opcode::MUL => 0x07,
-            Opcode::MULB => 0x07,
-            Opcode::DIV => 0x08,
-            Opcode::DIVB => 0x08,
-            Opcode::MOD => 0x09,
-            Opcode::MODB => 0x09,
-            Opcode::INC => 0x0A,
-            Opcode::INCB => 0x0A,
-            Opcode::DEC => 0x0B,
-            Opcode::DECB => 0x0B,
-            Opcode::AND => 0x0C,
-            Opcode::ANDB => 0x0C,
-            Opcode::OR => 0x0D,
-            Opcode::ORB => 0x0D,
-            Opcode::XOR => 0x0E,
-            Opcode::XORB => 0x0E,
-            Opcode::NOT => 0x0F,
-            Opcode::NOTB => 0x0F,
-            Opcode::SHL => 0x10,
-            Opcode::SHLB => 0x10,
-            Opcode::SHR => 0x11,
-            Opcode::SHRB => 0x11,
-            Opcode::CMP => 0x12,
-            Opcode::CMPB => 0x12,
-            Opcode::JMP => 0x13,
-            Opcode::JZ => 0x14,
-            Opcode::JNZ => 0x14,
-            Opcode::JN => 0x14,
-            Opcode::JNN => 0x14,
-            Opcode::JO => 0x14,
-            Opcode::JNO => 0x14,
-            Opcode::JSB => 0x15,
-            Opcode::RSB => 0x16,
-            Opcode::CLI => 0x17,
-            Opcode::SEI => 0x18,
-            Opcode::RSI => 0x19,
+            MnemonicType::NOP => 0x00,
+            MnemonicType::HLT => 0x01,
+            MnemonicType::MOV => 0x02,
+            MnemonicType::MOVB => 0x02,
+            MnemonicType::PHR => 0x03,
+            MnemonicType::PHL => 0x04,
+            MnemonicType::ADD => 0x05,
+            MnemonicType::ADDB => 0x05,
+            MnemonicType::SUB => 0x06,
+            MnemonicType::SUBB => 0x06,
+            MnemonicType::MUL => 0x07,
+            MnemonicType::MULB => 0x07,
+            MnemonicType::DIV => 0x08,
+            MnemonicType::DIVB => 0x08,
+            MnemonicType::MOD => 0x09,
+            MnemonicType::MODB => 0x09,
+            MnemonicType::INC => 0x0A,
+            MnemonicType::INCB => 0x0A,
+            MnemonicType::DEC => 0x0B,
+            MnemonicType::DECB => 0x0B,
+            MnemonicType::AND => 0x0C,
+            MnemonicType::ANDB => 0x0C,
+            MnemonicType::OR => 0x0D,
+            MnemonicType::ORB => 0x0D,
+            MnemonicType::XOR => 0x0E,
+            MnemonicType::XORB => 0x0E,
+            MnemonicType::NOT => 0x0F,
+            MnemonicType::NOTB => 0x0F,
+            MnemonicType::SHL => 0x10,
+            MnemonicType::SHLB => 0x10,
+            MnemonicType::SHR => 0x11,
+            MnemonicType::SHRB => 0x11,
+            MnemonicType::CMP => 0x12,
+            MnemonicType::CMPB => 0x12,
+            MnemonicType::JMP => 0x13,
+            MnemonicType::JZ => 0x14,
+            MnemonicType::JNZ => 0x14,
+            MnemonicType::JN => 0x14,
+            MnemonicType::JNN => 0x14,
+            MnemonicType::JO => 0x14,
+            MnemonicType::JNO => 0x14,
+            MnemonicType::JSB => 0x15,
+            MnemonicType::RSB => 0x16,
+            MnemonicType::CLI => 0x17,
+            MnemonicType::SEI => 0x18,
+            MnemonicType::RSI => 0x19,
             _ => unreachable!(),
         }
     }
 }
 
-impl From<&str> for Opcode {
-    fn from(value: &str) -> Opcode {
+impl From<&str> for MnemonicType {
+    fn from(value: &str) -> MnemonicType {
         match value.to_uppercase().as_str() {
-            "NOP" => Opcode::NOP,
-            "HLT" => Opcode::HLT,
-            "MOV" => Opcode::MOV,
-            "MOVB" => Opcode::MOVB,
-            "PHR" => Opcode::PHR,
-            "PHL" => Opcode::PHL,
-            "ADD" => Opcode::ADD,
-            "ADDB" => Opcode::ADDB,
-            "SUB" => Opcode::SUB,
-            "SUBB" => Opcode::SUBB,
-            "MUL" => Opcode::MUL,
-            "MULB" => Opcode::MULB,
-            "DIV" => Opcode::DIV,
-            "DIVB" => Opcode::DIVB,
-            "MOD" => Opcode::MOD,
-            "MODB" => Opcode::MODB,
-            "INC" => Opcode::INC,
-            "INCB" => Opcode::INCB,
-            "DEC" => Opcode::DEC,
-            "DECB" => Opcode::DECB,
-            "AND" => Opcode::AND,
-            "ANDB" => Opcode::ANDB,
-            "OR" => Opcode::OR,
-            "ORB" => Opcode::ORB,
-            "XOR" => Opcode::XOR,
-            "XORB" => Opcode::XORB,
-            "NOT" => Opcode::NOT,
-            "NOTB" => Opcode::NOTB,
-            "SHL" => Opcode::SHL,
-            "SHLB" => Opcode::SHLB,
-            "SHR" => Opcode::SHR,
-            "SHRB" => Opcode::SHRB,
-            "CMP" => Opcode::CMP,
-            "CMPB" => Opcode::CMPB,
-            "JMP" => Opcode::JMP,
-            "JZ" => Opcode::JZ,
-            "JNZ" => Opcode::JNZ,
-            "JN" => Opcode::JN,
-            "JNN" => Opcode::JNN,
-            "JO" => Opcode::JO,
-            "JNO" => Opcode::JNO,
-            "JSB" => Opcode::JSB,
-            "RSB" => Opcode::RSB,
-            "CLI" => Opcode::CLI,
-            "SEI" => Opcode::SEI,
-            "RSI" => Opcode::RSI,
-            _ => Opcode::NONE,
+            "NOP" => MnemonicType::NOP,
+            "HLT" => MnemonicType::HLT,
+            "MOV" => MnemonicType::MOV,
+            "MOVB" => MnemonicType::MOVB,
+            "PHR" => MnemonicType::PHR,
+            "PHL" => MnemonicType::PHL,
+            "ADD" => MnemonicType::ADD,
+            "ADDB" => MnemonicType::ADDB,
+            "SUB" => MnemonicType::SUB,
+            "SUBB" => MnemonicType::SUBB,
+            "MUL" => MnemonicType::MUL,
+            "MULB" => MnemonicType::MULB,
+            "DIV" => MnemonicType::DIV,
+            "DIVB" => MnemonicType::DIVB,
+            "MOD" => MnemonicType::MOD,
+            "MODB" => MnemonicType::MODB,
+            "INC" => MnemonicType::INC,
+            "INCB" => MnemonicType::INCB,
+            "DEC" => MnemonicType::DEC,
+            "DECB" => MnemonicType::DECB,
+            "AND" => MnemonicType::AND,
+            "ANDB" => MnemonicType::ANDB,
+            "OR" => MnemonicType::OR,
+            "ORB" => MnemonicType::ORB,
+            "XOR" => MnemonicType::XOR,
+            "XORB" => MnemonicType::XORB,
+            "NOT" => MnemonicType::NOT,
+            "NOTB" => MnemonicType::NOTB,
+            "SHL" => MnemonicType::SHL,
+            "SHLB" => MnemonicType::SHLB,
+            "SHR" => MnemonicType::SHR,
+            "SHRB" => MnemonicType::SHRB,
+            "CMP" => MnemonicType::CMP,
+            "CMPB" => MnemonicType::CMPB,
+            "JMP" => MnemonicType::JMP,
+            "JZ" => MnemonicType::JZ,
+            "JNZ" => MnemonicType::JNZ,
+            "JN" => MnemonicType::JN,
+            "JNN" => MnemonicType::JNN,
+            "JO" => MnemonicType::JO,
+            "JNO" => MnemonicType::JNO,
+            "JSB" => MnemonicType::JSB,
+            "RSB" => MnemonicType::RSB,
+            "CLI" => MnemonicType::CLI,
+            "SEI" => MnemonicType::SEI,
+            "RSI" => MnemonicType::RSI,
+            _ => MnemonicType::NONE,
         }
     }
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum DirectiveType {
     ORG,
     INCLUDE,
@@ -184,14 +185,7 @@ pub enum DirectiveType {
     ASCII,
 }
 
-#[derive(Debug, PartialEq)]
-pub enum LiteralType {
-    Dec(u16),
-    Hex(u16),
-    Bin(u16),
-}
-
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum RegisterType {
     Direct(u8),
     Indirect(u8),
@@ -241,11 +235,11 @@ impl CupanaLexer {
         value
     }
 
-    pub fn get_output(&self) -> &[Token] {
-        self.output.as_slice()
+    pub fn get_output(&self) -> &Vec<Token> {
+        &self.output
     }
 
-    pub fn lex(&mut self) {
+    pub fn lex(&mut self) -> &Vec<Token> {
         let mut symbols: Vec<String> = vec![];
         while !(self.idx >= self.buffer.len()) {
             let byte = self.fetch();
@@ -279,12 +273,12 @@ impl CupanaLexer {
         }
 
         let org = Regex::new(r"\.[a-z]*").unwrap();
-        let label = Regex::new(r"[a-z]*:").unwrap();
+        let labeldef = Regex::new(r"[a-z]*:").unwrap();
         let reg = Regex::new(r"r[0-9]{1,2}\*?").unwrap();
         let lit_bin = Regex::new(r"0b[0-1]").unwrap();
         let lit_hex = Regex::new(r"0x[0-9a-f]").unwrap();
-        let mnem = Regex::new(r"[a-z]{2,4}").unwrap();
         let lit_dec = Regex::new(r"[0-9]*").unwrap();
+        let label = Regex::new(r"[a-z]*").unwrap();
 
         for symbol in symbols {
             let mut token = Token::None;
@@ -303,9 +297,9 @@ impl CupanaLexer {
                     },
                     None => {}
                 },
-                false => match label.is_match(sym) {
+                false => match labeldef.is_match(sym) {
                     true => match sym.strip_suffix(":") {
-                        Some(string) => token = Token::Label(string.to_string()),
+                        Some(string) => token = Token::LabelDef(string.to_string()),
                         None => {}
                     },
                     false => match reg.is_match(sym) {
@@ -333,7 +327,7 @@ impl CupanaLexer {
                             true => {
                                 let value = sym.strip_prefix("0b").unwrap();
                                 match u16::from_str_radix(value, 2) {
-                                    Ok(value) => token = Token::Literal(LiteralType::Bin(value)),
+                                    Ok(value) => token = Token::Literal(value),
                                     Err(e) => println!("Erro no Bin: {}", e),
                                 }
                             }
@@ -341,24 +335,27 @@ impl CupanaLexer {
                                 true => {
                                     let value = sym.strip_prefix("0x").unwrap();
                                     match u16::from_str_radix(value, 16) {
-                                        Ok(value) => {
-                                            token = Token::Literal(LiteralType::Hex(value))
-                                        }
+                                        Ok(value) => token = Token::Literal(value),
                                         Err(e) => println!("Erro no Hex: {:?}", e),
                                     }
                                 }
-                                false => match mnem.is_match(sym) {
-                                    true => token = Token::from(Token::Mnemonic(Opcode::from(sym))),
-                                    false => match lit_dec.is_match(sym) {
-                                        true => match u16::from_str_radix(sym, 10) {
-                                            Ok(value) => {
-                                                token = Token::Literal(LiteralType::Dec(value))
-                                            }
-                                            Err(e) => println!("Erro no Dec: {} {:?}", sym, e),
-                                        },
-                                        false => token = Token::None,
-                                    },
-                                },
+                                false => {
+                                    if MnemonicType::from(sym) != MnemonicType::NONE {
+                                        token =
+                                            Token::from(Token::Mnemonic(MnemonicType::from(sym)))
+                                    } else {
+                                        match lit_dec.is_match(sym) {
+                                            true => match u16::from_str_radix(sym, 10) {
+                                                Ok(value) => token = Token::Literal(value),
+                                                Err(e) => println!("Erro no Dec: {} {:?}", sym, e),
+                                            },
+                                            false => match label.is_match(sym) {
+                                                true => token = Token::Label(sym.to_string()),
+                                                false => token = Token::None,
+                                            },
+                                        }
+                                    }
+                                }
                             },
                         },
                     },
@@ -368,5 +365,6 @@ impl CupanaLexer {
                 self.output.push(token);
             }
         }
+        return self.get_output();
     }
 }

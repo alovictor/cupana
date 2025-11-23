@@ -164,10 +164,9 @@ impl Machine {
         mem.read_u16(addr)
     }
 
-    fn push_u16(&mut self, mem: &mut Memory, value: u16) -> Result<(), String> {
+    fn push_u16(&mut self, mem: &mut Memory, value: u16) {
         mem.write_u16(self.registers[SP], value);
         self.registers[SP] = self.registers[SP].wrapping_add(2);
-        Ok(())
     }
 
     fn pull_u16(&mut self, mem: &mut Memory) -> u16 {
@@ -182,35 +181,14 @@ impl Machine {
         self.set_flag(Flag::Overflow, overflow);
     }
 
-    fn _print_state(&self, mem: &Memory) {
-        println!("------------------------");
-        println!(
-            "  PC: {:04X}   SP: {:04X}",
-            self.registers[PC], self.registers[SP]
-        );
-        println!("  FLAGS: {:08b} ", self.flags as u8);
-        println!("REGISTRADORES: ");
-        let offset = self.registers.len() / 2;
-        for idx in 0..offset {
-            println!(
-                "  R{:02}: {:04X}   R{:02}: {:04X}",
-                idx,
-                self.registers[idx],
-                idx + offset,
-                self.registers[idx + offset],
-            );
-        }
-
-        println!("{}", mem);
-        println!("------------------------");
-    }
-
-    pub fn step(&mut self, mem: &mut Memory) {
-        let byte = self.fetch_u8(mem);
+    fn decode_opcode(&self, byte: u8) -> (Opcode, u8, u8) {
         let opcode = Opcode::from(byte >> 3);
         let b = (byte >> 2) & 1;
         let mode = byte & 0b11;
+        (opcode, b, mode)
+    }
 
+    fn decode_args(&mut self, opcode: &Opcode, b: u8, mode: u8, mem: &Memory) -> (u8, u8, u16, u8) {
         let mut dest: u8 = 0;
         let mut orig: u8 = 0;
         let mut literal_u16: u16 = 0;
@@ -264,6 +242,37 @@ impl Machine {
                 _ => unreachable!(),
             }
         }
+
+        (dest, orig, literal_u16, literal_u8)
+    }
+
+    fn _print_state(&self, mem: &Memory) {
+        println!("------------------------");
+        println!(
+            "  PC: {:04X}   SP: {:04X}",
+            self.registers[PC], self.registers[SP]
+        );
+        println!("  FLAGS: {:08b} ", self.flags as u8);
+        println!("REGISTRADORES: ");
+        let offset = self.registers.len() / 2;
+        for idx in 0..offset {
+            println!(
+                "  R{:02}: {:04X}   R{:02}: {:04X}",
+                idx,
+                self.registers[idx],
+                idx + offset,
+                self.registers[idx + offset],
+            );
+        }
+
+        println!("{}", mem);
+        println!("------------------------");
+    }
+
+    pub fn step(&mut self, mem: &mut Memory) {
+        let byte = self.fetch_u8(mem);
+        let (opcode, b, mode) = self.decode_opcode(byte);
+        let (dest, orig, literal_u16, literal_u8) = self.decode_args(&opcode, b, mode, mem);
 
         match opcode {
             Opcode::NOP => {
@@ -321,8 +330,7 @@ impl Machine {
             },
             Opcode::PHR => {
                 println!("PHR R{}", dest);
-                self.push_u16(mem, self.registers[dest as usize])
-                    .expect("Erro no push_16");
+                self.push_u16(mem, self.registers[dest as usize]);
             }
             Opcode::PLR => {
                 println!("PLR R{}", dest);
@@ -1037,8 +1045,7 @@ impl Machine {
                 }
             }
             Opcode::JSB => {
-                self.push_u16(mem, self.registers[PC])
-                    .expect("Erro no push");
+                self.push_u16(mem, self.registers[PC]);
                 match mode {
                     0 => {
                         println!("JMP R{}", dest);
@@ -1096,22 +1103,34 @@ mod tests {
         assert_eq!(machine.flags, 0);
     }
 
+    macro_rules! pc {
+        ($machine:ident) => {
+            machine.registers[PC] as usize;
+        };
+    }
+
     #[test]
     fn test_mov() {
         let mut mem = Memory::new();
         let mut machine = Machine::new(&mem);
+        mem.append(0, &[0, 1]);
 
-        mem.load_rom(&[
-            0b0001_0001,
-            0b0000_0000,
-            RAM_BASE as u8,
-            (RAM_BASE >> 8) as u8,
-        ]); // MOV R0, RAM_BASE
+        mem.append(
+            pc!(machine),
+            &[
+                0b0001_0001,
+                0b0000_0000,
+                RAM_BASE as u8,
+                (RAM_BASE >> 8) as u8,
+            ],
+        ); // MOV R0, RAM_BASE
         machine.step(&mut mem);
         assert_eq!(machine.registers[0], RAM_BASE);
 
-        machine.reset_pc(&mem);
-        mem.load_rom(&[0b0001_0001, 0b0000_0001, 0x00, 0x01]); // MOV R1, 256
+        mem.append(
+            machine.registers[PC] as usize,
+            &[0b0001_0001, 0b0000_0001, 0x00, 0x01],
+        ); // MOV R1, 256
         machine.step(&mut mem);
         assert_eq!(machine.registers[1], 0x0100);
 
