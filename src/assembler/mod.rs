@@ -6,19 +6,22 @@ use std::collections::HashMap;
 use lexer::{CupanaLexer, Token};
 use parser::{CupanaParser, Instruction, OneArgType, OperationType, TwoArgsType};
 
-use crate::assembler::lexer::{DirectiveType, RegisterType};
+use crate::assembler::lexer::{DirectiveType, MnemonicType, RegisterType};
+use crate::assembler::parser::{is_conditional_jump, ConditionalJumpType};
+use crate::memory::ROM_SIZE;
 
 pub struct CupanaAssembler {
     instructions: Vec<Instruction>,
     labels: HashMap<String, u16>,
     curr_addr: u16,
-    output: Vec<u8>,
+    output: [u8; ROM_SIZE],
 }
 
 impl CupanaAssembler {
     pub fn new(path: &str) -> Self {
         let mut lexer = CupanaLexer::new(path);
         let tokens = lexer.lex().to_vec();
+        // dbg!(&tokens);
         let mut parser = CupanaParser::new(tokens);
         let instructions = parser.parse().to_vec();
 
@@ -26,37 +29,39 @@ impl CupanaAssembler {
             instructions,
             labels: HashMap::new(),
             curr_addr: 0,
-            output: vec![],
+            output: [0; ROM_SIZE],
         }
     }
 
-    pub fn assemble(&mut self) -> Vec<u8> {
+    pub fn assemble(&mut self) -> &[u8] {
         self.resolve_labels();
-        self.gen_bytes().to_vec()
+        self.gen_bytes()
     }
 
     fn push_u8(&mut self, value: u8) {
-        self.output.push(value);
+        if self.curr_addr >= ROM_SIZE as u16 {
+            println!("Tamanho da rom excedido");
+            return;
+        }
+        self.output[self.curr_addr as usize] = value;
         self.curr_addr += 1;
     }
 
     fn push_u16(&mut self, value: u16) {
         let high = (value & 0xff) as u8;
         let low = (value >> 8) as u8;
-        self.output.push(high);
-        self.output.push(low);
+        self.push_u8(high);
+        self.push_u8(low);
     }
 
-    fn get_output(&self) -> &Vec<u8> {
+    fn get_output(&self) -> &[u8] {
         &self.output
     }
 
     fn resolve_labels(&mut self) {
         let mut iter = self.instructions.iter();
-        // println!("{:?}", self.instructions);
 
         while let Some(inst) = iter.next() {
-            println!("{:?}", inst);
             match inst {
                 Instruction::LabelDef(name) => {
                     self.labels.insert(name.to_string(), self.curr_addr);
@@ -76,17 +81,20 @@ impl CupanaAssembler {
                 _ => {}
             }
         }
-        // println!("{:?}", self.labels);
+
+        self.curr_addr = 0;
     }
 
-    fn gen_bytes(&mut self) -> &Vec<u8> {
+    fn gen_bytes(&mut self) -> &[u8] {
         for inst in self.instructions.clone() {
+            println!("{:?}", inst);
             match inst {
                 Instruction::Operation(op) => match op {
                     OperationType::NoArgs(mnem) => self.push_u8(mnem.to_byte() << 3),
                     OperationType::OneArg(op_type) => match op_type {
                         OneArgType::Reg(mnem, Token::Register(RegisterType::Direct(reg))) => {
                             self.push_u8(mnem.to_byte() << 3);
+                            self.handle_conditional(mnem);
                             self.push_u8(reg);
                         }
                         OneArgType::RegB(mnem, Token::Register(RegisterType::Direct(reg))) => {
@@ -102,12 +110,14 @@ impl CupanaAssembler {
                         }
                         OneArgType::Lit(mnem, Token::Literal(value)) => {
                             self.push_u8((mnem.to_byte() << 3) | 0x01);
+                            self.handle_conditional(mnem);
                             self.push_u16(value);
                         }
                         OneArgType::Label(mnem, Token::Label(name)) => {
                             let label_value = self.labels.get(&name).copied();
                             if let Some(value) = label_value {
                                 self.push_u8((mnem.to_byte() << 3) | 0x01);
+                                self.handle_conditional(mnem);
                                 self.push_u16(value);
                             }
                         }
@@ -119,8 +129,9 @@ impl CupanaAssembler {
                             Token::Register(RegisterType::Direct(dest)),
                             Token::Register(RegisterType::Direct(orig)),
                         ) => {
+                            println!("dest {} orig {} byte {}", dest, orig, (dest << 4) & orig);
                             self.push_u8(mnem.to_byte() << 3);
-                            self.push_u8((dest << 4) & orig);
+                            self.push_u8((dest << 4) | orig);
                         }
                         TwoArgsType::RegLit(
                             mnem,
@@ -130,7 +141,6 @@ impl CupanaAssembler {
                             self.push_u8((mnem.to_byte() << 3) | 0b001);
                             self.push_u8(dest);
                             self.push_u16(value);
-                            self.curr_addr += 4;
                         }
                         TwoArgsType::RegIReg(
                             mnem,
@@ -138,7 +148,7 @@ impl CupanaAssembler {
                             Token::Register(RegisterType::Direct(orig)),
                         ) => {
                             self.push_u8((mnem.to_byte() << 3) | 0b010);
-                            self.push_u8((dest << 4) & orig);
+                            self.push_u8((dest << 4) | orig);
                         }
                         TwoArgsType::RegRegI(
                             mnem,
@@ -146,7 +156,7 @@ impl CupanaAssembler {
                             Token::Register(RegisterType::Direct(orig)),
                         ) => {
                             self.push_u8((mnem.to_byte() << 3) | 0b011);
-                            self.push_u8((dest << 4) & orig);
+                            self.push_u8((dest << 4) | orig);
                         }
                         TwoArgsType::RegBRegB(
                             mnem,
@@ -154,7 +164,7 @@ impl CupanaAssembler {
                             Token::Register(RegisterType::Direct(orig)),
                         ) => {
                             self.push_u8((mnem.to_byte() << 3) | 0b100);
-                            self.push_u8((dest << 4) & orig);
+                            self.push_u8((dest << 4) | orig);
                         }
                         TwoArgsType::RegLitB(
                             mnem,
@@ -171,17 +181,14 @@ impl CupanaAssembler {
                             Token::Register(RegisterType::Direct(orig)),
                         ) => {
                             self.push_u8((mnem.to_byte() << 3) | 0b110);
-                            self.push_u8((dest << 4) & orig);
+                            self.push_u8((dest << 4) | orig);
                         }
                         _ => unreachable!(),
                     },
                 },
                 Instruction::Diretive(dir_type, Token::Literal(value)) => match dir_type {
                     DirectiveType::ORG => {
-                        while self.curr_addr < value {
-                            self.push_u8(0);
-                        }
-                        self.curr_addr = value
+                        self.curr_addr = value;
                     }
                     DirectiveType::SHORT => {
                         self.push_u16(value);
@@ -216,6 +223,20 @@ impl CupanaAssembler {
                 TwoArgsType::RegLitB(_, _, _) => 3,
                 TwoArgsType::RegLit(_, _, _) => 4,
             },
+        }
+    }
+
+    fn handle_conditional(&mut self, mnem: MnemonicType) {
+        if is_conditional_jump(&mnem) {
+            match mnem {
+                MnemonicType::JZ => self.push_u8(0),
+                MnemonicType::JNZ => self.push_u8(1),
+                MnemonicType::JN => self.push_u8(2),
+                MnemonicType::JNN => self.push_u8(3),
+                MnemonicType::JO => self.push_u8(4),
+                MnemonicType::JNO => self.push_u8(5),
+                _ => unreachable!(),
+            }
         }
     }
 }

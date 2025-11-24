@@ -1,4 +1,7 @@
-use std::{fmt, ops::Range};
+use std::{
+    fmt,
+    ops::{Range, RangeTo},
+};
 
 pub const ROM_SIZE: usize = 0x8000;
 pub const RAM_SIZE: usize = 0x6000;
@@ -70,8 +73,9 @@ impl Memory {
         self.rom[id..value.len()].copy_from_slice(value);
     }
 
-    fn print_memory(&self, range: Range<u16>) {
-        let cols = 8;
+    pub fn print_memory(&self, start: u16, end: u16) {
+        let cols = 16;
+        let range = start..end;
         for idx in range.step_by(cols) {
             print!("  {:04X}: ", idx);
             for i in 0..cols as u16 {
@@ -86,9 +90,9 @@ impl Memory {
 impl fmt::Display for Memory {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         writeln!(f, "Stack:")?;
-        self.print_memory(STACK_BASE..STACK_BASE + 32);
+        self.print_memory(STACK_BASE, STACK_BASE + 32);
         writeln!(f, "ROM:")?;
-        self.print_memory(ROM_BASE..ROM_BASE + 32);
+        self.print_memory(ROM_BASE + 0x100, ROM_BASE + 0x0180);
         Ok(())
     }
 }

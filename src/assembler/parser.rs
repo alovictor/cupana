@@ -5,6 +5,7 @@ use super::lexer::Token;
 #[derive(Debug, PartialEq, Clone)]
 pub enum Instruction {
     Operation(OperationType),
+    ConditionalJump(ConditionalJumpType),
     Diretive(DirectiveType, Token),
     LabelDef(String),
     Label(String),
@@ -15,6 +16,16 @@ pub enum OperationType {
     NoArgs(MnemonicType),
     OneArg(OneArgType),
     TwoArgs(TwoArgsType),
+}
+
+#[derive(Debug, PartialEq, Clone)]
+pub enum ConditionalJumpType {
+    Zero(Token),
+    NotZero(Token),
+    Negative(Token),
+    NotNegative(Token),
+    Overflow(Token),
+    NotOverflow(Token),
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -72,10 +83,10 @@ impl CupanaParser {
                     self.output.push(Instruction::Diretive(dir_type, tk));
                 }
                 Token::Mnemonic(mnem) => {
-                    if self.is_no_args(&mnem) {
+                    if is_no_args(&mnem) {
                         self.output
                             .push(Instruction::Operation(OperationType::NoArgs(mnem)));
-                    } else if self.is_one_arg(&mnem) {
+                    } else if is_one_arg(&mnem) {
                         let inst = self.parse_one_arg(mnem);
                         self.output
                             .push(Instruction::Operation(OperationType::OneArg(inst)));
@@ -94,7 +105,7 @@ impl CupanaParser {
     fn parse_one_arg(&mut self, mnem: MnemonicType) -> OneArgType {
         let token = self.fetch();
         match token {
-            Token::Register(RegisterType::Direct(_)) => match self.is_byte_op(&mnem) {
+            Token::Register(RegisterType::Direct(_)) => match is_byte_op(&mnem) {
                 true => OneArgType::RegB(mnem, token),
                 false => OneArgType::Reg(mnem, token),
             },
@@ -110,84 +121,102 @@ impl CupanaParser {
         let token_orig = self.fetch();
         match token_dest {
             Token::Register(RegisterType::Direct(_)) => match token_orig {
-                Token::Register(RegisterType::Direct(_)) => match self.is_byte_op(&mnem) {
+                Token::Register(RegisterType::Direct(_)) => match is_byte_op(&mnem) {
                     true => TwoArgsType::RegBRegB(mnem, token_dest, token_orig),
                     false => TwoArgsType::RegReg(mnem, token_dest, token_orig),
                 },
                 Token::Register(RegisterType::Indirect(_)) => {
                     TwoArgsType::RegRegI(mnem, token_dest, token_orig)
                 }
-                Token::Literal(_) => match self.is_byte_op(&mnem) {
+                Token::Literal(_) => match is_byte_op(&mnem) {
                     true => TwoArgsType::RegLitB(mnem, token_dest, token_orig),
                     false => TwoArgsType::RegLit(mnem, token_dest, token_orig),
                 },
-                _ => unreachable!(),
+                _ => {
+                    println!("{:?} {:?}", token_dest, token_orig);
+                    unreachable!()
+                }
             },
             Token::Register(RegisterType::Indirect(_)) => match token_orig {
-                Token::Register(RegisterType::Direct(_)) => match self.is_byte_op(&mnem) {
+                Token::Register(RegisterType::Direct(_)) => match is_byte_op(&mnem) {
                     true => TwoArgsType::RegIRegB(mnem, token_dest, token_orig),
                     false => TwoArgsType::RegIReg(mnem, token_dest, token_orig),
                 },
                 _ => unreachable!(),
             },
-            _ => unreachable!(),
+            _ => {
+                println!("{:?} {:?}", token_dest, token_orig);
+                unreachable!()
+            }
         }
     }
+}
 
-    fn is_no_args(&self, mnem: &MnemonicType) -> bool {
-        matches!(
-            mnem,
-            MnemonicType::NOP
-                | MnemonicType::HLT
-                | MnemonicType::CLI
-                | MnemonicType::SEI
-                | MnemonicType::RSI
-                | MnemonicType::RSB
-        )
-    }
+pub fn is_no_args(mnem: &MnemonicType) -> bool {
+    matches!(
+        mnem,
+        MnemonicType::NOP
+            | MnemonicType::HLT
+            | MnemonicType::CLI
+            | MnemonicType::SEI
+            | MnemonicType::RSI
+            | MnemonicType::RSB
+    )
+}
 
-    fn is_one_arg(&self, mnem: &MnemonicType) -> bool {
-        // INC, DEC, NOT, JMP, JZ, JSB, PHR, PLR
-        matches!(
-            mnem,
-            MnemonicType::INC
-                | MnemonicType::INCB
-                | MnemonicType::DEC
-                | MnemonicType::DECB
-                | MnemonicType::NOT
-                | MnemonicType::NOTB
-                | MnemonicType::PHR
-                | MnemonicType::PHL
-                | MnemonicType::JMP
-                | MnemonicType::JSB
-                | MnemonicType::JZ
-                | MnemonicType::JNZ
-                | MnemonicType::JN
-                | MnemonicType::JNN
-                | MnemonicType::JO
-                | MnemonicType::JNO
-        )
-    }
+pub fn is_one_arg(mnem: &MnemonicType) -> bool {
+    // INC, DEC, NOT, JMP, JZ, JSB, PHR, PLR
+    matches!(
+        mnem,
+        MnemonicType::INC
+            | MnemonicType::INCB
+            | MnemonicType::DEC
+            | MnemonicType::DECB
+            | MnemonicType::NOT
+            | MnemonicType::NOTB
+            | MnemonicType::PHR
+            | MnemonicType::PHL
+            | MnemonicType::JMP
+            | MnemonicType::JSB
+            | MnemonicType::JZ
+            | MnemonicType::JNZ
+            | MnemonicType::JN
+            | MnemonicType::JNN
+            | MnemonicType::JO
+            | MnemonicType::JNO
+    )
+}
 
-    fn is_byte_op(&self, mnem: &MnemonicType) -> bool {
-        // MOVB, ADDB, SUBB, MULB, DIVB, MODB, INCB, DECB, ANDB, ORB, XORB, NOTB, SHLB, SHRB, CMPB
-        matches!(
-            mnem,
-            MnemonicType::MOVB
-                | MnemonicType::ADDB
-                | MnemonicType::SUBB
-                | MnemonicType::MULB
-                | MnemonicType::DIVB
-                | MnemonicType::MODB
-                | MnemonicType::INCB
-                | MnemonicType::DECB
-                | MnemonicType::ANDB
-                | MnemonicType::ORB
-                | MnemonicType::XORB
-                | MnemonicType::NOTB
-                | MnemonicType::SHLB
-                | MnemonicType::SHRB
-                | MnemonicType::CMPB
-        )
-    }
+pub fn is_conditional_jump(mnem: &MnemonicType) -> bool {
+    matches!(
+        mnem,
+        MnemonicType::JZ
+            | MnemonicType::JNZ
+            | MnemonicType::JN
+            | MnemonicType::JNN
+            | MnemonicType::JO
+            | MnemonicType::JNO
+    )
+}
+
+pub fn is_byte_op(mnem: &MnemonicType) -> bool {
+    // MOVB, ADDB, SUBB, MULB, DIVB, MODB, INCB, DECB, ANDB, ORB, XORB, NOTB, SHLB, SHRB, CMPB
+    matches!(
+        mnem,
+        MnemonicType::MOVB
+            | MnemonicType::ADDB
+            | MnemonicType::SUBB
+            | MnemonicType::MULB
+            | MnemonicType::DIVB
+            | MnemonicType::MODB
+            | MnemonicType::INCB
+            | MnemonicType::DECB
+            | MnemonicType::ANDB
+            | MnemonicType::ORB
+            | MnemonicType::XORB
+            | MnemonicType::NOTB
+            | MnemonicType::SHLB
+            | MnemonicType::SHRB
+            | MnemonicType::CMPB
+    )
 }

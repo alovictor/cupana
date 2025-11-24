@@ -218,6 +218,12 @@ impl Machine {
                 },
                 _ => unreachable!(),
             }
+        } else if *opcode == Opcode::JPC {
+            match mode {
+                0 => (dest, orig) = (self.fetch_u8(mem), self.fetch_u8(mem)),
+                1 => (dest, literal_u16) = (self.fetch_u8(mem), self.fetch_u16(mem)),
+                _ => unreachable!(),
+            }
         } else if ![
             Opcode::NOP,
             Opcode::HLT,
@@ -1103,12 +1109,6 @@ mod tests {
         assert_eq!(machine.flags, 0);
     }
 
-    macro_rules! pc {
-        ($machine:ident) => {
-            machine.registers[PC] as usize;
-        };
-    }
-
     #[test]
     fn test_mov() {
         let mut mem = Memory::new();
@@ -1116,7 +1116,7 @@ mod tests {
         mem.append(0, &[0, 1]);
 
         mem.append(
-            pc!(machine),
+            machine.registers[PC] as usize,
             &[
                 0b0001_0001,
                 0b0000_0000,

@@ -277,7 +277,7 @@ impl CupanaLexer {
         let reg = Regex::new(r"r[0-9]{1,2}\*?").unwrap();
         let lit_bin = Regex::new(r"0b[0-1]").unwrap();
         let lit_hex = Regex::new(r"0x[0-9a-f]").unwrap();
-        let lit_dec = Regex::new(r"[0-9]*").unwrap();
+        let lit_dec = Regex::new(r"[0-9]+$").unwrap();
         let label = Regex::new(r"[a-z]*").unwrap();
 
         for symbol in symbols {
